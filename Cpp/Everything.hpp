@@ -269,12 +269,15 @@ namespace Everythings {
             {
                 COPYDATASTRUCT* copydata = (COPYDATASTRUCT*)lParam;
                 if (copydata->dwData == 0) {  //_EVERYTHING_COPYDATA_QUERYREPLY
+                    Everything* ev = (Everything*)GetPropW(hwnd, wnd_prop_name);
+                    if (!ev)
+                        return FALSE;  //going to destruct
+
                     auto p = std::make_shared<uint8_t[]>(copydata->cbData);
                     memcpy(p.get(), copydata->lpData, copydata->cbData);
-
-                    Everything* ev = (Everything*)GetPropW(hwnd, wnd_prop_name);
                     ev->results_promise.set_value(std::move(p));
-                    ev->results_read.get_future().get();
+                    if(!ev->results_read.get_future().get())
+                        return TRUE;  //going to destruct, no more need to make the promise
                     ev->results_read = std::promise<bool>();
                 }
                 return TRUE;
@@ -331,9 +334,16 @@ namespace Everythings {
         }
 
         ~Everything() {
+            //exit the msg loop
             PostMessageW(hwnd, WM_QUIT, 0, 0);
             //DestroyWindow(hwnd);  //doesn't work
-            thread.join();
+
+            //exit waiting for results_read
+            RemovePropW(hwnd, wnd_prop_name);
+            results_read.set_value(false);
+            
+            //it should be safe, so needn't to join
+            thread.detach();
         }
 
         bool query_send(const std::wstring& search, SearchFlags search_flags, RequestFlags request_flags, Sort sort = Sort::Name_Ascending, DWORD id = 0, DWORD offset = 0, DWORD max_results = 0xFFFFFFFF) {
@@ -380,21 +390,23 @@ namespace Everythings {
             return SendMessageTimeoutW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&copydata, 0, 1, nullptr);
         }
 
-        // f should return true if it got QueryResults from the future
-        void query_future(std::function<bool(std::future<QueryResults>)> f) {
-            if (f(results_promise.get_future())) {
-                results_promise = std::promise<QueryResults>();
-                results_read.set_value(true);
+    private:
+        bool query_future_first = true;
+    public:
+        // You must retrieve the returned future before call again
+        std::future<QueryResults> query_future() {
+            if (query_future_first) {
+                query_future_first = false;
+                return results_promise.get_future();
             }
+            results_promise = std::promise<QueryResults>();
+            results_read.set_value(true);
+            return results_promise.get_future();
         }
 
+        // Equals to query_future().get()
         QueryResults query_get() {
-            QueryResults results;
-            query_future([&results](std::future<QueryResults> fut) {
-                results = fut.get();
-                return true;
-            });
-            return results;
+            return query_future().get();
         }
     };
 }

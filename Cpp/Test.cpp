@@ -14,7 +14,7 @@ int main()
     {
         Everything ev;
         ev.query_send(LR"(infolder:"C:\Program Files (x86)\")", 0, Request::FileName | Request::Size);
-        QueryResults results = ev.query_get();
+        QueryResults results = ev.query_get();  //or query_future().get()
         DWORD num = results.query_num;
         cout << num << " ";
         for (DWORD i = 0; i < num; i++) {

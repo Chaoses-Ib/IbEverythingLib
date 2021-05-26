@@ -12,7 +12,7 @@
 
 namespace ib {
     using wchar = wchar_t;
-    using byte_t = uint8_t;  //since there is std::byte
+    using Byte = uint8_t;  //since there is std::byte
     using QWORD = uint64_t;
 
     using std::function;

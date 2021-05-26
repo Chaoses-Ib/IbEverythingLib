@@ -108,9 +108,9 @@ namespace Everythings {
 
     class QueryItem {
         RequestFlags request;
-        ib::addr p;
+        ib::Addr p;
 
-        QueryItem(RequestFlags request, ib::addr p) : request(request), p(p) {}
+        QueryItem(RequestFlags request, ib::Addr p) : request(request), p(p) {}
     public:
         friend class QueryResults;
 
@@ -120,7 +120,7 @@ namespace Everythings {
 
         void all_until(std::function<bool(RequestFlags flag, void* data)> f) {
             RequestFlags request = this->request;
-            ib::addr p = this->p;
+            ib::Addr p = this->p;
             auto read = [request, &p, f](RequestFlags flag) {
                 if (!(request & flag))
                     return true;
@@ -128,16 +128,16 @@ namespace Everythings {
                     return false;
                 switch (RequestData::type(flag)) {
                 case RequestData::Str:
-                    p.offset(sizeof(DWORD) + (*(DWORD*)p + 1) * sizeof(wchar_t));  //#TODO: p += ...
+                    p += sizeof(DWORD) + (*(DWORD*)p + 1) * sizeof(wchar_t);
                     break;
                 case RequestData::Size:
-                    p.offset(sizeof(uint64_t));
+                    p += sizeof(uint64_t);
                     break;
                 case RequestData::Date:
-                    p.offset(sizeof(FILETIME));
+                    p += sizeof(FILETIME);
                     break;
                 case RequestData::Dword:
-                    p.offset(sizeof(DWORD));
+                    p += sizeof(DWORD);
                     break;
                 }
                 return true;
@@ -174,11 +174,11 @@ namespace Everythings {
         }
 
         std::wstring get_str(RequestFlags flag) {
-            ib::addr data = get(flag);
+            ib::Addr data = get(flag);
             return { (const wchar_t*)(data + sizeof(DWORD)), *(DWORD*)data };
         }
         const wchar_t* get_cstr(RequestFlags flag) {
-            return ib::addr(get(flag)) + sizeof(DWORD);
+            return ib::Addr(get(flag)) + sizeof(DWORD);
         }
         size_t get_cstr_len(RequestFlags flag) {
             return *(DWORD*)get(flag);
@@ -210,14 +210,14 @@ namespace Everythings {
         };
 
         std::shared_ptr<uint8_t[]> p;  //#TODO: async
-        ib::addr addr() {
+        ib::Addr addr() {
             return p.get();
         }
         EVERYTHING_IPC_LIST2* list2() {
             return addr();
         }
         EVERYTHING_IPC_ITEM2* items() {
-            return ib::addr(list2() + 1);
+            return ib::Addr(list2() + 1);
         }
 
         QueryResults(std::shared_ptr<uint8_t[]>&& p)
@@ -244,7 +244,7 @@ namespace Everythings {
         }
 
         // For std::async
-        QueryResults() : p({ nullptr }), found_num(0), query_num(0), request_flags(0), sort((Sort)0) {}
+        QueryResults() : p(nullptr), found_num(0), query_num(0), request_flags(0), sort((Sort)0) {}
         QueryResults& operator=(const QueryResults& a) {
             p = a.p;
             found_num = a.found_num;

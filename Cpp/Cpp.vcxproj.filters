@@ -20,8 +20,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Everything.hpp">
-      <Filter>Source Files</Filter>
+    <ClInclude Include="IbEverythingLib\include\IbEverythingLib\Everything.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

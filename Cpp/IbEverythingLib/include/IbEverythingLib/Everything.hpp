@@ -5,7 +5,7 @@
 #include <thread>
 #include <future>
 #include <Windows.h>
-#include "IbWinCppLib/WinCppLib.hpp"
+#include <IbWinCppLib/WinCppLib.hpp>
 
 #include <iostream>  // For debug
 

@@ -146,9 +146,12 @@
     <ClCompile Include="Test.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Everything.hpp" />
+    <ClInclude Include="IbEverythingLib\include\IbEverythingLib\Everything.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <ImportGroup Label="Dependencies">
+    <Import Project="C:\L\C++\packages\IbWinCppLib\IbWinCppLib.props" />
   </ImportGroup>
 </Project>

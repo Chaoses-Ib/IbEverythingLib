@@ -18,7 +18,7 @@ namespace UnitTest
 			QueryResults results;
 
 			for (size_t i = 0; i < times; i++) {
-				ev.query_send(LR"(infolder:"C:\")", 0, Request::FileName | Request::Size, Sort::Default, i);
+				ev.query_send(LR"(infolder:"C:\")", 0, Request::FileName | Request::Size, Sort::Default, (DWORD)i);
 				results = ev.query_get();
 			}
 

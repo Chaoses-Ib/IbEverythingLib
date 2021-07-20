@@ -1,13 +1,11 @@
 #pragma once
-#include <string>
+#include <string_view>
 #include <memory>
 #include <functional>
 #include <thread>
 #include <future>
 #include <Windows.h>
 #include <IbWinCppLib/WinCppLib.hpp>
-
-#include <iostream>  // For debug
 
 namespace Everythings {
     constexpr int debug =
@@ -25,55 +23,6 @@ namespace Everythings {
         static T MatchPath = 0x00000004;
         static T Regex = 0x00000008;
         static T MatchAccents = 0x00000010;  //abandoned?
-    };
-
-    //enum class can't be used like "Request::Path | Request::Size"
-    using RequestFlags = DWORD;
-    struct Request {
-        using T = const RequestFlags;
-        static T FileName = 0x00000001;
-        static T Path = 0x00000002;
-        static T FullPathAndFileName = 0x00000004;
-        static T Extension = 0x00000008;
-        static T Size = 0x00000010;
-        static T DateCreated = 0x00000020;
-        static T DateModified = 0x00000040;
-        static T DateAccessed = 0x00000080;
-        static T Attributes = 0x00000100;
-        static T FileListFileName = 0x00000200;
-        static T RunCount = 0x00000400;
-        static T DateRun = 0x00000800;
-        static T DateRecentlyChanged = 0x00001000;
-        static T HighlightedFileName = 0x00002000;
-        static T HighlightedPath = 0x00004000;
-        static T HighlightedFullPathAndFileName = 0x00008000;
-    };
-
-    class RequestData {
-    public:
-        enum Type { Str, Size, Date, Dword };
-        static Type type(RequestFlags flag) {
-            switch (flag) {
-            case Request::FileName: return Str;
-            case Request::Path: return Str;
-            case Request::FullPathAndFileName: return Str;
-            case Request::Extension: return Str;
-            case Request::Size: return Size;
-            case Request::DateCreated: return Date;
-            case Request::DateModified: return Date;
-            case Request::DateAccessed: return Date;
-            case Request::Attributes: return Dword;
-            case Request::FileListFileName: return Str;
-            case Request::RunCount: return Dword;
-            case Request::DateRun: return Date;
-            case Request::DateRecentlyChanged: return Date;
-            case Request::HighlightedFileName: return Str;
-            case Request::HighlightedPath: return Str;
-            case Request::HighlightedFullPathAndFileName: return Str;
-            default:
-                throw std::invalid_argument("Invalid request flag");
-            }
-        }
     };
 
     enum class Sort : DWORD {
@@ -104,6 +53,57 @@ namespace Everythings {
         DateAccessed_Descending = 24,
         DateRun_Ascending = 25,
         DateRun_Descending = 26
+    };
+
+    //enum class can't be used like "Request::Path | Request::Size"
+    using RequestFlags = DWORD;
+    struct Request {
+        using T = const RequestFlags;
+        static T FileName = 0x00000001;
+        static T Path = 0x00000002;
+        static T FullPathAndFileName = 0x00000004;
+        static T Extension = 0x00000008;
+        static T Size = 0x00000010;
+        static T DateCreated = 0x00000020;
+        static T DateModified = 0x00000040;
+        static T DateAccessed = 0x00000080;
+        static T Attributes = 0x00000100;
+        static T FileListFileName = 0x00000200;
+        static T RunCount = 0x00000400;
+        static T DateRun = 0x00000800;
+        static T DateRecentlyChanged = 0x00001000;
+        static T HighlightedFileName = 0x00002000;
+        static T HighlightedPath = 0x00004000;
+        static T HighlightedFullPathAndFileName = 0x00008000;
+    };
+
+#pragma warning(push)
+#pragma warning(disable : 26812)  //enum class
+    class RequestData {
+    public:
+        enum Type { Str, Size, Date, Dword };
+        static Type type(RequestFlags flag) {
+            switch (flag) {
+            case Request::FileName: return Str;
+            case Request::Path: return Str;
+            case Request::FullPathAndFileName: return Str;
+            case Request::Extension: return Str;
+            case Request::Size: return Size;
+            case Request::DateCreated: return Date;
+            case Request::DateModified: return Date;
+            case Request::DateAccessed: return Date;
+            case Request::Attributes: return Dword;
+            case Request::FileListFileName: return Str;
+            case Request::RunCount: return Dword;
+            case Request::DateRun: return Date;
+            case Request::DateRecentlyChanged: return Date;
+            case Request::HighlightedFileName: return Str;
+            case Request::HighlightedPath: return Str;
+            case Request::HighlightedFullPathAndFileName: return Str;
+            default:
+                throw std::invalid_argument("Invalid request flag");
+            }
+        }
     };
 
     class QueryItem {
@@ -187,6 +187,7 @@ namespace Everythings {
             return *(DWORD*)get(flag);
         }
     };
+#pragma warning(pop)
 
     class QueryResults {
         struct EVERYTHING_IPC_LIST2 {
@@ -386,7 +387,7 @@ namespace Everythings {
             thread.detach();
         }
 
-        bool query_send(const std::wstring& search, SearchFlags search_flags, RequestFlags request_flags, Sort sort = Sort::Name_Ascending, DWORD id = 0, DWORD offset = 0, DWORD max_results = 0xFFFFFFFF) {
+        bool query_send(std::wstring_view search, SearchFlags search_flags, RequestFlags request_flags, Sort sort = Sort::Name_Ascending, DWORD id = 0, DWORD offset = 0, DWORD max_results = 0xFFFFFFFF) {
             //Make QueryData
             struct EVERYTHING_IPC_QUERY2 {
                 DWORD reply_hwnd;  //!: not sizeof(HWND)
@@ -403,7 +404,7 @@ namespace Everythings {
             DWORD data_len = DWORD(sizeof(EVERYTHING_IPC_QUERY2) + len * sizeof(wchar_t));
             EVERYTHING_IPC_QUERY2* data = (EVERYTHING_IPC_QUERY2*)new uint8_t[data_len];
 
-            data->reply_hwnd = (DWORD)hwnd;
+            data->reply_hwnd = *(DWORD*)&hwnd;  //(DWORD)hwnd will be warned
             data->reply_copydata_message = id;
             data->search_flags = search_flags;
             data->offset = offset;
@@ -446,7 +447,8 @@ namespace Everythings {
     private:
         bool query_future_first = true;
     public:
-        // You must retrieve the returned future before call again
+        // You must retrieve the returned future before call again.
+        // If the current results are not retrieved, the new results will be discarded after 3 seconds.
         std::future<QueryResults> query_future() {
             if constexpr (debug) {
                 ib::DebugOStream dout;

@@ -220,8 +220,9 @@ namespace Everythings {
             return ib::Addr(list2() + 1);
         }
 
-        QueryResults(std::shared_ptr<uint8_t[]>&& p)
+        QueryResults(std::shared_ptr<uint8_t[]>&& p, DWORD id)
             : p(p),
+            id(id),
             found_num(list2()->totitems),
             query_num(list2()->numitems),
             request_flags(list2()->request_flags),
@@ -229,6 +230,8 @@ namespace Everythings {
         {}
     public:
         friend class Everything;
+
+        DWORD id;
 
         DWORD found_num;  // non-const because of operator=
         DWORD query_num;
@@ -244,9 +247,10 @@ namespace Everythings {
         }
 
         // For std::async
-        QueryResults() : p(nullptr), found_num(0), query_num(0), request_flags(0), sort((Sort)0) {}
+        QueryResults() : p(nullptr), id(0), found_num(0), query_num(0), request_flags(0), sort((Sort)0) {}
         QueryResults& operator=(const QueryResults& a) {
             p = a.p;
+            id = a.id;
             found_num = a.found_num;
             query_num = a.query_num;
             request_flags = a.request_flags;
@@ -262,24 +266,44 @@ namespace Everythings {
         static inline const wchar_t* wnd_prop_name = L"Everything::Ev";
         static LRESULT WINAPI wndproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if constexpr (debug)
-                std::cout << "wndproc: " << hwnd << ", " << msg << ", " << wParam << ", " << lParam << std::endl;
+                ib::DebugOStream() << "wndproc: " << hwnd << ", " << msg << ", " << wParam << ", " << lParam << std::endl;
 
             switch (msg) {
             case WM_COPYDATA:
             {
-                COPYDATASTRUCT* copydata = (COPYDATASTRUCT*)lParam;
-                if (copydata->dwData == 0) {  //_EVERYTHING_COPYDATA_QUERYREPLY
-                    Everything* ev = (Everything*)GetPropW(hwnd, wnd_prop_name);
-                    if (!ev)
-                        return FALSE;  //going to destruct
+                //from Everything:
+                //SendMessageTimeoutW(0x00000000014d11b0, WM_COPYDATA, 66754, 15723936, SMTO_ABORTIFHUNG | SMTO_BLOCK, 3000, 0x0000000000efedb8)
 
-                    auto p = std::make_shared<uint8_t[]>(copydata->cbData);
-                    memcpy(p.get(), copydata->lpData, copydata->cbData);
-                    ev->results_promise.set_value(std::move(p));
-                    if(!ev->results_read.get_future().get())
+                COPYDATASTRUCT* copydata = (COPYDATASTRUCT*)lParam;
+                //Do not assert that copydata->dwData == _EVERYTHING_COPYDATA_QUERYREPLY(0)
+                //The code in Everything's SDK is wrong. copydata->dwData is replyid and can be any value.
+                //ib::DebugOStream() << L"copydata->dwData: " << copydata->dwData << std::endl;
+
+                DWORD id = (DWORD)copydata->dwData;
+                auto p = std::make_shared<uint8_t[]>(copydata->cbData);
+                memcpy(p.get(), copydata->lpData, copydata->cbData);
+                ReplyMessage(TRUE);
+
+                Everything* ev = (Everything*)GetPropW(hwnd, wnd_prop_name);
+                if (!ev)
+                    return FALSE;  //going to destruct
+
+                if constexpr (debug) {
+                    ib::DebugOStream dout;
+                    dout << L"ReplyMessage" << std::endl;
+                    ev->results_promise.set_value({ std::move(p), id });  dout << L"results_promise: set" << std::endl;
+                    bool read = ev->results_read.get_future().get();
+                    dout << L"results_read: get " << read << std::endl;
+                    if (!read)
                         return TRUE;  //going to destruct, no more need to make the promise
-                    ev->results_read = std::promise<bool>();
+                    ev->results_read = std::promise<bool>();  dout << L"results_read: new" << std::endl;
+                    return TRUE;
                 }
+                ev->results_promise.set_value({ std::move(p), id });
+                if(!ev->results_read.get_future().get())
+                    return TRUE;  //going to destruct, no more need to make the promise
+                ev->results_read = std::promise<bool>();
+
                 return TRUE;
             }
             default:
@@ -323,10 +347,31 @@ namespace Everythings {
                 
                     //won't get WM_COPYDATA here
                     if constexpr (debug)
-                        std::cout << "GetMessage: " << msg.message << ", " << msg.wParam << ", " << msg.lParam << std::endl;
+                        ib::DebugOStream() << L"GetMessage: " << msg.message << L", " << msg.wParam << L", " << msg.lParam << std::endl;
+
+                    switch (msg.message) {
+                    case WM_APP:  //SendQuery(COPYDATASTRUCT*, 0)
+                    {
+                        static HWND ev_hwnd = 0;
+                        if (!IsWindow(ev_hwnd))
+                            ev_hwnd = FindWindowW(L"EVERYTHING_TASKBAR_NOTIFICATION", 0);
+
+                        COPYDATASTRUCT* copydata = ib::Addr(msg.wParam);
+                        if constexpr (debug) {
+                            ib::DebugOStream() << L"SendMessage begin" << std::endl;
+                            SendMessageW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)copydata);
+                            ib::DebugOStream() << L"SendMessage end" << std::endl;
+                            delete copydata;
+                            break;
+                        }
+                        SendMessageW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)copydata);
+                        delete copydata;
+                        break;
+                    }
+                    }
                 }
                 if constexpr (debug)
-                    std::cout << "GetMessage: break" << std::endl;
+                    ib::DebugOStream() << "GetMessage: break" << std::endl;
             
                 }, std::ref(*this), std::move(promise_hwnd));  //#TODO
 
@@ -374,20 +419,33 @@ namespace Everythings {
             search.copy(data->search_string, len);
             data->search_string[len] = L'\0';
 
+            COPYDATASTRUCT* copydata = new COPYDATASTRUCT;
+            copydata->cbData = data_len;
+            copydata->dwData = 18;  //EVERYTHING_IPC_COPYDATA_QUERY2W
+            copydata->lpData = data;
 
             //SendQuery
-            static HWND ev_hwnd = 0;
-            if (!IsWindow(ev_hwnd))
-                ev_hwnd = FindWindowW(L"EVERYTHING_TASKBAR_NOTIFICATION", 0);
-
-            COPYDATASTRUCT copydata;
-            copydata.cbData = data_len;
-            copydata.dwData = 18;  //EVERYTHING_IPC_COPYDATA_QUERY2W
-            copydata.lpData = data;
-            //available: SendMessageW (blocked), SendMessageTimeoutW
+            
+            //available: SendMessageW (blocked), SendMessageTimeoutW (unstable)
             //unavailable: PostMessageW, SendNotifyMessageW
             //not tested: SendMessageCallbackW
-            return SendMessageTimeoutW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&copydata, 0, 1, nullptr);
+            /*
+            if constexpr (debug) {
+                LRESULT result;
+                DWORD error;
+                if (true) {
+                    result = SendMessageW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&copydata);
+                }
+                else {
+                    result = SendMessageTimeoutW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&copydata, 0, 1, nullptr);
+                }
+                error = GetLastError();
+                ib::DebugOStream() << L"SendMessage: " << result << L", " << error << std::endl;
+                return result || error == ERROR_TIMEOUT;
+            }
+            return SendMessageTimeoutW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&copydata, 0, 1, nullptr) || GetLastError() == ERROR_TIMEOUT;
+            */
+            return PostMessageW(hwnd, WM_APP, (WPARAM)copydata, 0);
         }
 
     private:
@@ -395,6 +453,19 @@ namespace Everythings {
     public:
         // You must retrieve the returned future before call again
         std::future<QueryResults> query_future() {
+            if constexpr (debug) {
+                ib::DebugOStream dout;
+                if (query_future_first) {
+                    query_future_first = false;
+                    auto fut = results_promise.get_future();  dout << L"results_promise: get_future" << std::endl;
+                    return fut;
+                }
+                results_promise = std::promise<QueryResults>();  dout << L"results_promise: new" << std::endl;
+                results_read.set_value(true);  dout << L"results_read: set" << std::endl;
+                auto fut = results_promise.get_future();  dout << L"results_promise: get_future" << std::endl;
+                return fut;
+            }
+
             if (query_future_first) {
                 query_future_first = false;
                 return results_promise.get_future();
@@ -406,6 +477,11 @@ namespace Everythings {
 
         // Equals to query_future().get()
         QueryResults query_get() {
+            if constexpr (debug) {
+                QueryResults results = query_future().get();
+                ib::DebugOStream() << L"results_promise: get" << std::endl;
+                return results;
+            }
             return query_future().get();
         }
     };

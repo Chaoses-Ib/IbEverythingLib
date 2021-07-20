@@ -19,7 +19,7 @@ int main()
         DWORD num = results.query_num;
         wcout << num << endl;
         for (DWORD i = 0; i < num; i++) {
-            wstring s = results[i].get_str(Request::FileName);
+            wstring_view s = results[i].get_str(Request::FileName);
             uint64_t size = results[i].get_size();
             if constexpr (Everythings::debug)
                 wcout << left << setw(30) << s << setw(15) << right << (size >> 10) / 1024. << L" MB" << endl;

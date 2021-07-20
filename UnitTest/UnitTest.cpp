@@ -25,7 +25,7 @@ namespace UnitTest
 			DWORD num = results.query_num;
 			Logger::WriteMessage(to_wstring(num).c_str());
 			for (DWORD i = 0; i < num; i++) {
-				wstring s = results[i].get_str(Request::FileName);
+				wstring_view s = results[i].get_str(Request::FileName);
 				uint64_t size = results[i].get_size();
 
 				wstringstream ss;

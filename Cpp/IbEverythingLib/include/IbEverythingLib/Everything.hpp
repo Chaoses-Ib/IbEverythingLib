@@ -173,15 +173,9 @@ namespace Everythings {
             return data;
         }
 
-        std::wstring get_str(RequestFlags flag) {
+        std::wstring_view get_str(RequestFlags flag) {
             ib::Addr data = get(flag);
             return { (const wchar_t*)(data + sizeof(DWORD)), *(DWORD*)data };
-        }
-        const wchar_t* get_cstr(RequestFlags flag) {
-            return ib::Addr(get(flag)) + sizeof(DWORD);
-        }
-        size_t get_cstr_len(RequestFlags flag) {
-            return *(DWORD*)get(flag);
         }
         uint64_t get_size(RequestFlags flag = Request::Size) {
             return *(uint64_t*)get(flag);
@@ -242,6 +236,7 @@ namespace Everythings {
         size_t size() { return query_num; }
         size_t length() { return query_num; }
 
+        //Do not release QueryResults during the use of QueryItem.
         QueryItem operator[](size_t i) {
             return { request_flags, addr() + items()[i].data_offset };
         }

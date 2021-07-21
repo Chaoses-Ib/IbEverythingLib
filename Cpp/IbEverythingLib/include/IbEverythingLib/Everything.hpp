@@ -1,8 +1,10 @@
 #pragma once
 #include <string_view>
 #include <memory>
+#include <map>
 #include <functional>
 #include <thread>
+#include <mutex>
 #include <future>
 #include <Windows.h>
 #include <IbWinCppLib/WinCppLib.hpp>
@@ -190,6 +192,9 @@ namespace Everythings {
 #pragma warning(pop)
 
     class QueryResults {
+        template <typename DerivedT>
+        friend class EverythingBase;
+
         struct EVERYTHING_IPC_LIST2 {
             DWORD totitems;  //found items
             DWORD numitems;  //available items
@@ -215,7 +220,7 @@ namespace Everythings {
             return ib::Addr(list2() + 1);
         }
 
-        QueryResults(std::shared_ptr<uint8_t[]>&& p, DWORD id)
+        QueryResults(DWORD id, std::shared_ptr<uint8_t[]>&& p)
             : p(p),
             id(id),
             found_num(list2()->totitems),
@@ -224,8 +229,6 @@ namespace Everythings {
             sort(list2()->sort_type)
         {}
     public:
-        friend class Everything;
-
         DWORD id;
 
         DWORD found_num;  // non-const because of operator=
@@ -255,11 +258,16 @@ namespace Everythings {
         }
     };
 
-    class Everything {
+
+    template <typename DerivedT>
+    class EverythingBase {
+        DerivedT& derived;
+
         std::thread thread;  //message queue is bound to thread
 
         HWND hwnd;
-        static inline const wchar_t* wnd_prop_name = L"Everything::Ev";
+        static inline const wchar_t* wnd_prop_name = L"IbEverythingLib::EverythingBase";  //lambda capture
+        
         static LRESULT WINAPI wndproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if constexpr (debug)
                 ib::DebugOStream() << "wndproc: " << hwnd << ", " << msg << ", " << wParam << ", " << lParam << std::endl;
@@ -280,42 +288,24 @@ namespace Everythings {
                 memcpy(p.get(), copydata->lpData, copydata->cbData);
                 ReplyMessage(TRUE);
 
-                Everything* ev = (Everything*)GetPropW(hwnd, wnd_prop_name);
-                if (!ev)
+                DerivedT* derived_p = ib::Addr(GetPropW(hwnd, wnd_prop_name));
+                if (!derived_p)
                     return FALSE;  //going to destruct
 
-                if constexpr (debug) {
-                    ib::DebugOStream dout;
-                    dout << L"ReplyMessage" << std::endl;
-                    ev->results_promise.set_value({ std::move(p), id });  dout << L"results_promise: set" << std::endl;
-                    bool read = ev->results_read.get_future().get();
-                    dout << L"results_read: get " << read << std::endl;
-                    if (!read)
-                        return TRUE;  //going to destruct, no more need to make the promise
-                    ev->results_read = std::promise<bool>();  dout << L"results_read: new" << std::endl;
-                    return TRUE;
-                }
-                ev->results_promise.set_value({ std::move(p), id });
-                if(!ev->results_read.get_future().get())
-                    return TRUE;  //going to destruct, no more need to make the promise
-                ev->results_read = std::promise<bool>();
-
+                derived_p->data_arrive({ id, std::move(p) });
                 return TRUE;
             }
             default:
                 return DefWindowProcW(hwnd, msg, wParam, lParam);
             }
         }
-        
-        std::promise<QueryResults> results_promise;
-        std::promise<bool> results_read;
-
-    public:
-        Everything() {
+    protected:
+        EverythingBase(DerivedT& derived) : derived(derived)
+        {
             std::promise<HWND> promise_hwnd;
             std::future<HWND> future_hwnd = promise_hwnd.get_future();
 
-            thread = std::thread([](Everything& ev, std::promise<HWND>&& promise_hwnd) {
+            thread = std::thread([](EverythingBase& ev, std::promise<HWND>&& promise_hwnd) {
                 WNDCLASSEXW wndclass;
                 const wchar_t* classname = L"EVERYTHING_DLL_IB";
                 wndclass.cbSize = sizeof WNDCLASSEXW;
@@ -328,11 +318,10 @@ namespace Everythings {
                 }
 
                 HWND hwnd = CreateWindowExW(0, classname, nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE, 0, GetModuleHandleW(0), 0);
+                SetPropW(hwnd, wnd_prop_name, &ev);
                 promise_hwnd.set_value(hwnd);
                 if constexpr (debug)
-                    std::cout << "hwnd: " << hwnd << std::endl;
-                
-                SetPropW(hwnd, wnd_prop_name, &ev);
+                    ib::DebugOStream() << "hwnd: " << hwnd << std::endl;
 
                 //needed for receiving SendMessage
                 MSG msg;
@@ -340,7 +329,7 @@ namespace Everythings {
                 while (ret = GetMessageW(&msg, hwnd, 0, 0)) {
                     if (ret == -1)
                         break;
-                
+
                     //won't get WM_COPYDATA here
                     if constexpr (debug)
                         ib::DebugOStream() << L"GetMessage: " << msg.message << L", " << msg.wParam << L", " << msg.lParam << std::endl;
@@ -368,21 +357,20 @@ namespace Everythings {
                 }
                 if constexpr (debug)
                     ib::DebugOStream() << "GetMessage: break" << std::endl;
-            
+
                 }, std::ref(*this), std::move(promise_hwnd));  //#TODO
 
             hwnd = future_hwnd.get();
         }
 
-        ~Everything() {
+        ~EverythingBase() {
             //exit the msg loop
             PostMessageW(hwnd, WM_QUIT, 0, 0);
             //DestroyWindow(hwnd);  //doesn't work
 
-            //exit waiting for results_read
             RemovePropW(hwnd, wnd_prop_name);
-            results_read.set_value(false);
-            
+            //~derived();
+
             //it should be safe, so needn't to join
             thread.detach();
         }
@@ -421,7 +409,7 @@ namespace Everythings {
             copydata->lpData = data;
 
             //SendQuery
-            
+
             //available: SendMessageW (blocked), SendMessageTimeoutW (unstable)
             //unavailable: PostMessageW, SendNotifyMessageW
             //not tested: SendMessageCallbackW
@@ -443,10 +431,55 @@ namespace Everythings {
             */
             return PostMessageW(hwnd, WM_APP, (WPARAM)copydata, 0);
         }
+    };
 
-    private:
+    class EverythingBaseDerived : public EverythingBase<EverythingBaseDerived> {
+        friend class EverythingBase;
+
+        void data_arrive(QueryResults&& results);
+    public:
+        EverythingBaseDerived() : EverythingBase(*this) {}
+        
+        ~EverythingBaseDerived() {
+            //stop data_arrive
+        }
+    };
+
+
+    class Everything : public EverythingBase<Everything> {
+        friend class EverythingBase;
+
+        std::promise<QueryResults> results_promise;
+        std::promise<bool> results_read;
+
+        void data_arrive(QueryResults&& results) {
+            if constexpr (debug) {
+                ib::DebugOStream dout;
+                dout << L"ReplyMessage" << std::endl;
+                results_promise.set_value(std::move(results));  dout << L"results_promise: set" << std::endl;
+                bool read = results_read.get_future().get();
+                dout << L"results_read: get " << read << std::endl;
+                if (!read)
+                    return;  //going to destruct, no more need to make the promise
+                results_read = std::promise<bool>();  dout << L"results_read: new" << std::endl;
+                return;
+            }
+            results_promise.set_value(std::move(results));
+            if (!results_read.get_future().get())
+                return;  //going to destruct, no more need to make the promise
+            results_read = std::promise<bool>();
+        }
         bool query_future_first = true;
     public:
+        Everything() : EverythingBase(*this) {}
+
+        ~Everything() {
+            //exit waiting for results_read
+            results_read.set_value(false);
+        }
+
+        using EverythingBase::query_send;
+
         // You must retrieve the returned future before call again.
         // If the current results are not retrieved, the new results will be discarded after 3 seconds.
         std::future<QueryResults> query_future() {
@@ -480,6 +513,43 @@ namespace Everythings {
                 return results;
             }
             return query_future().get();
+        }
+    };
+
+
+    // Thread-safe
+    class EverythingMT : public EverythingBase<EverythingMT> {
+        friend class EverythingBase;
+
+        DWORD id = 0;
+        std::map<DWORD, std::promise<QueryResults>> promises;
+        std::mutex mutex;
+
+        void data_arrive(QueryResults&& results) {
+            {
+                std::lock_guard lock(mutex);
+                auto it = promises.find(results.id);
+                it->second.set_value(std::move(results));
+                promises.erase(it);
+            }
+        }
+    public:
+        EverythingMT() : EverythingBase(*this) {}
+
+        ~EverythingMT() {};
+
+        std::future<QueryResults> query_send(std::wstring_view search, SearchFlags search_flags, RequestFlags request_flags, Sort sort = Sort::Name_Ascending, DWORD offset = 0, DWORD max_results = 0xFFFFFFFF) {
+            std::promise<QueryResults> promise{};
+            std::future<QueryResults> future = promise.get_future();
+            DWORD id_this;
+            {
+                std::lock_guard lock(mutex);
+                promises[id] = std::move(promise);
+                id_this = id;
+                ++id;
+            }
+            EverythingBase::query_send(search, search_flags, request_flags, sort, id_this, offset, max_results);
+            return future;
         }
     };
 }

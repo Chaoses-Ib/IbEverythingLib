@@ -10,7 +10,7 @@ using namespace Everythings;
 
 namespace UnitTest
 {
-	TEST_CLASS(UnitTest)
+	TEST_CLASS(EverythingTest)
 	{
 	public:
 		void Query(size_t times) {
@@ -23,7 +23,7 @@ namespace UnitTest
 			}
 
 			DWORD num = results.query_num;
-			Logger::WriteMessage(to_wstring(num).c_str());
+			Logger::WriteMessage(to_wstring(num).c_str()); Logger::WriteMessage(L"\n");
 			for (DWORD i = 0; i < num; i++) {
 				wstring_view s = results[i].get_str(Request::FileName);
 				uint64_t size = results[i].get_size();
@@ -34,17 +34,56 @@ namespace UnitTest
 			}
 		}
 
-		TEST_METHOD(TestQuery)
+		TEST_METHOD(TestQuery_CHECK)
 		{
 			Query(1);
 		}
 
-		TEST_METHOD(TestQueryTwice)
+		TEST_METHOD(TestQueryTwice_CHECK)
 		{
 			Query(2);
 		}
 
-		TEST_METHOD(TestQueryTenTimes)
+		TEST_METHOD(TestQueryTenTimes_CHECK)
+		{
+			Query(10);
+		}
+	};
+
+	TEST_CLASS(EverythingMTTest)
+	{
+	public:
+		void Query(size_t times) {
+			EverythingMT ev;
+			QueryResults results;
+
+			for (size_t i = 0; i < times; i++) {
+				results = ev.query_send(LR"(infolder:"C:\")", 0, Request::FileName | Request::Size, Sort::Default).get();
+			}
+
+			DWORD num = results.query_num;
+			Logger::WriteMessage(to_wstring(num).c_str()); Logger::WriteMessage(L"\n");
+			for (DWORD i = 0; i < num; i++) {
+				wstring_view s = results[i].get_str(Request::FileName);
+				uint64_t size = results[i].get_size();
+
+				wstringstream ss;
+				ss << left << setw(30) << s << setw(15) << right << (size >> 10) / 1024. << L" MB" << endl;
+				Logger::WriteMessage(ss.str().c_str());
+			}
+		}
+
+		TEST_METHOD(TestQuery_CHECK)
+		{
+			Query(1);
+		}
+
+		TEST_METHOD(TestQueryTwice_CHECK)
+		{
+			Query(2);
+		}
+
+		TEST_METHOD(TestQueryTenTimes_CHECK)
 		{
 			Query(10);
 		}

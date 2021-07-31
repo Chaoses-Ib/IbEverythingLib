@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <string_view>
 #include <memory>
 #include <map>
@@ -224,34 +224,36 @@ namespace Everythings {
             : p(p),
             id(id),
             found_num(list2()->totitems),
-            query_num(list2()->numitems),
+            available_num(list2()->numitems),
             request_flags(list2()->request_flags),
             sort(list2()->sort_type)
         {}
     public:
         DWORD id;
 
-        DWORD found_num;  // non-const because of operator=
-        DWORD query_num;
-        RequestFlags request_flags;
-        Sort sort;
+        DWORD found_num;  // The number of found items.
+        DWORD available_num;  // The number of available items.
+        RequestFlags request_flags;  // Valid request flags.
+        Sort sort;  // Maybe different to requested sort type.
 
         bool empty() { return p.get() == nullptr; }
-        size_t size() { return query_num; }
-        size_t length() { return query_num; }
 
-        //Do not release QueryResults during the use of QueryItem.
+        // The number of available items. (this->available_num)
+        size_t size() { return available_num; }
+
+        // Do not release QueryResults during the use of QueryItem.
         QueryItem operator[](size_t i) {
             return { request_flags, addr() + items()[i].data_offset };
         }
 
         // For std::async
-        QueryResults() : p(nullptr), id(0), found_num(0), query_num(0), request_flags(0), sort((Sort)0) {}
+        QueryResults() : p(nullptr), id(0), found_num(0), available_num(0), request_flags(0), sort((Sort)0) {}
         QueryResults& operator=(const QueryResults& a) {
+            //they have to be non-const
             p = a.p;
             id = a.id;
             found_num = a.found_num;
-            query_num = a.query_num;
+            available_num = a.available_num;
             request_flags = a.request_flags;
             sort = a.sort;
             return *this;

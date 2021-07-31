@@ -16,7 +16,7 @@ int main()
         Everything ev;
         ev.query_send(LR"(infolder:"C:\")", 0, Request::FileName | Request::Size);
         QueryResults results = ev.query_get();  //or query_future().get()
-        DWORD num = results.query_num;
+        DWORD num = results.available_num;  //or results.size()
         wcout << num << endl;
         for (DWORD i = 0; i < num; i++) {
             wstring_view s = results[i].get_str(Request::FileName);

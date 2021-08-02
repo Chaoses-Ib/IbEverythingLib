@@ -286,7 +286,11 @@ namespace Everythings {
                 //ib::DebugOStream() << L"copydata->dwData: " << copydata->dwData << std::endl;
 
                 DWORD id = (DWORD)copydata->dwData;
+#if __cpp_lib_shared_ptr_arrays >= 201707L
                 auto p = std::make_shared<uint8_t[]>(copydata->cbData);
+#else
+                std::shared_ptr<uint8_t[]> p(new uint8_t[copydata->cbData]);
+#endif
                 memcpy(p.get(), copydata->lpData, copydata->cbData);
                 ReplyMessage(TRUE);
 
@@ -436,7 +440,7 @@ namespace Everythings {
     };
 
     class EverythingBaseDerived : public EverythingBase<EverythingBaseDerived> {
-        friend class EverythingBase;
+        friend class EverythingBase<EverythingBaseDerived>;
 
         void data_arrive(QueryResults&& results);
     public:
@@ -449,7 +453,7 @@ namespace Everythings {
 
 
     class Everything : public EverythingBase<Everything> {
-        friend class EverythingBase;
+        friend class EverythingBase<Everything>;
 
         std::promise<QueryResults> results_promise;
         std::promise<bool> results_read;
@@ -521,7 +525,7 @@ namespace Everythings {
 
     // Thread-safe
     class EverythingMT : public EverythingBase<EverythingMT> {
-        friend class EverythingBase;
+        friend class EverythingBase<EverythingMT>;
 
         DWORD id = 0;
         std::map<DWORD, std::promise<QueryResults>> promises;

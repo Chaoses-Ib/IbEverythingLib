@@ -1,5 +1,5 @@
 # IbEverythingLib
-A C++ library for [Everything](https://www.voidtools.com/).
+A C++17 library for [Everything](https://www.voidtools.com/).
 
 ## Features
 * Higher performance. Compared with [the official SDK](https://www.voidtools.com/support/everything/sdk/), it reduces the query time by about 30%.

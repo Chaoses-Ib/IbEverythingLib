@@ -23,5 +23,8 @@
     <ClInclude Include="IbEverythingLib\include\IbEverythingLib\Everything.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="IbEverythingLib\include\IbEverythingLib\Everything_impl.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

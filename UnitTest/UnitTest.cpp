@@ -22,7 +22,7 @@ namespace UnitTest
 				results = ev.query_get();
 			}
 
-			DWORD num = results.available_num;  //or results.size()
+			DWORD num = results.available_num;  // or results.size()
 			Logger::WriteMessage(to_wstring(num).c_str()); Logger::WriteMessage(L"\n");
 			for (DWORD i = 0; i < num; i++) {
 				wstring_view s = results[i].get_str(Request::FileName);
@@ -61,7 +61,7 @@ namespace UnitTest
 				results = ev.query_send(LR"(infolder:"C:\")", 0, Request::FileName | Request::Size, Sort::Default).get();
 			}
 
-			DWORD num = results.available_num;  //or results.size()
+			DWORD num = results.available_num;  // or results.size()
 			Logger::WriteMessage(to_wstring(num).c_str()); Logger::WriteMessage(L"\n");
 			for (DWORD i = 0; i < num; i++) {
 				wstring_view s = results[i].get_str(Request::FileName);

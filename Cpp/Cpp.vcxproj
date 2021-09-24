@@ -205,6 +205,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="IbEverythingLib\include\IbEverythingLib\Everything.hpp" />
+    <ClInclude Include="IbEverythingLib\include\IbEverythingLib\Everything_impl.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

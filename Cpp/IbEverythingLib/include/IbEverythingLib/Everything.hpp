@@ -103,6 +103,9 @@ namespace Everythings {
     };
 
     class QueryResults {
+    protected:
+        // must be declared before other members relying on list2()
+        std::shared_ptr<uint8_t[]> p;  //#TODO: async
     public:
         DWORD id;
 
@@ -141,7 +144,6 @@ namespace Everythings {
             DWORD data_offset;
         };
 
-        std::shared_ptr<uint8_t[]> p;  //#TODO: async
         ib::Addr addr();
         EVERYTHING_IPC_LIST2* list2();
         EVERYTHING_IPC_ITEM2* items();
@@ -152,14 +154,49 @@ namespace Everythings {
 
     template <typename DerivedT>
     class EverythingBase {
+    public:
+        static bool is_ipc_available();
+        std::future<bool> ipc_availalbe_future();
+
+        enum class TargetMachine : uint32_t {
+            x86 = 1,
+            x64 = 2,
+            Arm = 3
+        };
+        struct Version {
+            uint32_t major;
+            uint32_t minor;
+            uint32_t revision;
+            uint32_t build;
+            TargetMachine target_machine;
+        };
+        Version get_version() const;
+
+        bool is_database_loaded() const;
+        std::future<bool> database_loaded_future() const;
+
+        enum class Info {
+            FileSize = 1,
+            FolderSize = 2,
+            DateCreated = 3,
+            DateModified = 4,
+            DateAccessed = 5,
+            Attributes = 6
+        };
+        bool is_info_indexed(Info info) const;
+
     protected:
         EverythingBase(DerivedT& derived);
         ~EverythingBase();
 
         bool query_send(std::wstring_view search, SearchFlags search_flags, RequestFlags request_flags, Sort sort = Sort::Name_Ascending, DWORD id = 0, DWORD offset = 0, DWORD max_results = 0xFFFFFFFF);
-
-    protected:
+    
         DerivedT& derived;
+
+        static inline HWND ipc_window;
+        static void update_ipc_window();
+        HANDLE ipc_event = nullptr;  // #TODO: std::shared_ptr
+        uint32_t send_ipc_dword(uint32_t command, uintptr_t param = 0) const;
 
         std::thread thread;  // message queue is bound to thread
 

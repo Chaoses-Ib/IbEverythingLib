@@ -141,7 +141,8 @@ namespace Everythings
         return ib::Addr(list2() + 1);
     }
 
-    inline QueryResults::QueryResults(DWORD id, std::shared_ptr<uint8_t[]>&& p): p(p),
+    inline QueryResults::QueryResults(DWORD id, std::shared_ptr<uint8_t[]>&& p)
+      : p(p),
         id(id),
         found_num(list2()->totitems),
         available_num(list2()->numitems),
@@ -173,6 +174,88 @@ namespace Everythings
 
 
 #pragma region EverythingBase
+
+    template <typename DerivedT>
+    bool EverythingBase<DerivedT>::is_ipc_available() {
+        if (IsWindow(ipc_window))
+            return true;
+        else {
+            ipc_window = nullptr;
+            return false;
+        }
+    }
+
+    template <typename DerivedT>
+    std::future<bool> EverythingBase<DerivedT>::ipc_availalbe_future() {
+        std::promise<bool> pro;
+        std::future<bool> fut = pro.get_future();
+
+        if (is_ipc_available()) {
+            pro.set_value(true);
+            return fut;
+        } else {
+            if (!ipc_event)
+                ipc_event = CreateEventW(nullptr, false, false, nullptr);
+
+            std::thread t([this, pro = std::move(pro)]() mutable {
+                WaitForSingleObject(ipc_event, INFINITE);
+                pro.set_value(is_ipc_available());
+                CloseHandle(ipc_event);
+            });
+            t.detach();
+            return fut;
+        }
+    }
+
+    template <typename DerivedT>
+    typename EverythingBase<DerivedT>::Version EverythingBase<DerivedT>::get_version() const {
+        constexpr uint32_t EVERYTHING_IPC_GET_MAJOR_VERSION = 0;
+        constexpr uint32_t EVERYTHING_IPC_GET_MINOR_VERSION = 1;
+        constexpr uint32_t EVERYTHING_IPC_GET_REVISION = 2;
+        constexpr uint32_t EVERYTHING_IPC_GET_BUILD_NUMBER = 3;
+        constexpr uint32_t EVERYTHING_IPC_GET_TARGET_MACHINE = 5;
+
+        return {
+            send_ipc_dword(EVERYTHING_IPC_GET_MAJOR_VERSION),
+            send_ipc_dword(EVERYTHING_IPC_GET_MINOR_VERSION),
+            send_ipc_dword(EVERYTHING_IPC_GET_REVISION),
+            send_ipc_dword(EVERYTHING_IPC_GET_BUILD_NUMBER),
+            static_cast<TargetMachine>(send_ipc_dword(EVERYTHING_IPC_GET_TARGET_MACHINE))
+        };
+    }
+
+    template <typename DerivedT>
+    bool EverythingBase<DerivedT>::is_database_loaded() const {
+        constexpr uint32_t EVERYTHING_IPC_IS_DB_LOADED = 401;
+        return send_ipc_dword(EVERYTHING_IPC_IS_DB_LOADED);
+    }
+
+    template <typename DerivedT>
+    std::future<bool> EverythingBase<DerivedT>::database_loaded_future() const {
+        std::promise<bool> pro;
+        std::future<bool> fut = pro.get_future();
+
+        if (is_database_loaded()) {
+            pro.set_value(true);
+            return fut;
+        } else {
+            std::thread t([this, pro = std::move(pro)]() mutable {
+                using namespace std::chrono_literals;
+
+                while (!is_database_loaded())
+                    std::this_thread::sleep_for(10ms);
+                pro.set_value(true);
+            });
+            t.detach();
+            return fut;
+        }
+    }
+
+    template <typename DerivedT>
+    bool EverythingBase<DerivedT>::is_info_indexed(Info info) const {
+        constexpr uint32_t EVERYTHING_IPC_IS_FILE_INFO_INDEXED = 411;
+        return send_ipc_dword(EVERYTHING_IPC_IS_FILE_INFO_INDEXED, static_cast<uintptr_t>(info));
+    }
 
     template <typename DerivedT>
     LRESULT EverythingBase<DerivedT>::wndproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -216,7 +299,7 @@ namespace Everythings
         std::promise<HWND> promise_hwnd;
         std::future<HWND> future_hwnd = promise_hwnd.get_future();
 
-        thread = std::thread([](EverythingBase& ev, std::promise<HWND>&& promise_hwnd) {
+        thread = std::thread([this, promise_hwnd = std::move(promise_hwnd)]() mutable {
             WNDCLASSEXW wndclass;
             const wchar_t* classname = L"EVERYTHING_DLL_IB";
             wndclass.cbSize = sizeof WNDCLASSEXW;
@@ -228,13 +311,16 @@ namespace Everythings
                 RegisterClassExW(&wndclass);
             }
 
-            HWND hwnd = CreateWindowExW(0, classname, nullptr, 0, 0, 0, 0, 0, HWND_MESSAGE, 0, GetModuleHandleW(0), 0);
-            SetPropW(hwnd, wnd_prop_name, &ev);
+            // do not use HWND_MESSAGE, it will cause the window unable to receive EVERYTHING_IPC_CREATED (which is posted by HWND_BROADCAST)
+            HWND hwnd = CreateWindowExW(0, classname, nullptr, 0, 0, 0, 0, 0, 0, 0, GetModuleHandleW(0), 0);
+            SetPropW(hwnd, wnd_prop_name, this);
             promise_hwnd.set_value(hwnd);
             if constexpr (impl::debug)
                 ib::DebugOStream() << "hwnd: " << hwnd << std::endl;
 
+            
             // needed for receiving SendMessage
+            UINT msg_ipc_created = RegisterWindowMessageW(L"EVERYTHING_IPC_CREATED");
             MSG msg;
             DWORD ret;
             while (ret = GetMessageW(&msg, hwnd, 0, 0)) {
@@ -245,33 +331,36 @@ namespace Everythings
                 if constexpr (impl::debug)
                     ib::DebugOStream() << L"GetMessage: " << msg.message << L", " << msg.wParam << L", " << msg.lParam << std::endl;
 
-                switch (msg.message) {
-                case WM_APP:  // SendQuery(COPYDATASTRUCT*, 0)
+                if (msg.message == msg_ipc_created) {
+                    update_ipc_window();
+                    if (ipc_event)
+                        SetEvent(ipc_event);
+                } else {
+                    switch (msg.message) {
+                    case WM_APP:  // SendQuery(COPYDATASTRUCT*, 0)
                     {
-                        static HWND ev_hwnd = 0;
-                        if (!IsWindow(ev_hwnd))
-                            ev_hwnd = FindWindowW(L"EVERYTHING_TASKBAR_NOTIFICATION", 0);
-
                         COPYDATASTRUCT* copydata = ib::Addr(msg.wParam);
                         if constexpr (impl::debug) {
                             ib::DebugOStream() << L"SendMessage begin" << std::endl;
-                            SendMessageW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)copydata);
+                            SendMessageW(ipc_window, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)copydata);
                             ib::DebugOStream() << L"SendMessage end" << std::endl;
                             delete copydata;
                             break;
                         }
-                        SendMessageW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)copydata);
+                        SendMessageW(ipc_window, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)copydata);
                         delete copydata;
                         break;
+                    }
                     }
                 }
             }
             if constexpr (impl::debug)
                 ib::DebugOStream() << "GetMessage: break" << std::endl;
 
-        }, std::ref(*this), std::move(promise_hwnd));  // #TODO
+        });
 
         hwnd = future_hwnd.get();
+        update_ipc_window();
     }
 
     template <typename DerivedT>
@@ -285,6 +374,8 @@ namespace Everythings
 
         // it should be safe, so needn't to join
         thread.detach();
+
+        CloseHandle(ipc_event);
     }
 
     template <typename DerivedT>
@@ -344,6 +435,17 @@ namespace Everythings
             return SendMessageTimeoutW(ev_hwnd, WM_COPYDATA, (WPARAM)hwnd, (LPARAM)&copydata, 0, 1, nullptr) || GetLastError() == ERROR_TIMEOUT;
             */
         return PostMessageW(hwnd, WM_APP, (WPARAM)copydata, 0);
+    }
+
+    template <typename DerivedT>
+    void EverythingBase<DerivedT>::update_ipc_window() {
+        ipc_window = FindWindowW(L"EVERYTHING_TASKBAR_NOTIFICATION", 0);
+    }
+
+    template <typename DerivedT>
+    uint32_t EverythingBase<DerivedT>::send_ipc_dword(uint32_t command, uintptr_t param) const {
+        constexpr UINT EVERYTHING_WM_IPC = WM_USER;
+        return static_cast<uint32_t>(SendMessageW(ipc_window, EVERYTHING_WM_IPC, command, param));
     }
 
 #pragma endregion

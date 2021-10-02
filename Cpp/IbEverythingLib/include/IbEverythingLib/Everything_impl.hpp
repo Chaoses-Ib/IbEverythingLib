@@ -299,7 +299,7 @@ namespace Everythings
         using namespace std::literals;
 
         ipc_class = L"EVERYTHING_TASKBAR_NOTIFICATION"s;
-        if (instance_name.data()) {
+        if (!instance_name.empty()) {
             ipc_class += L"_("sv;
             ipc_class += instance_name;
             ipc_class += L')';

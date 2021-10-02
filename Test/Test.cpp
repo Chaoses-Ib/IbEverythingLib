@@ -55,9 +55,9 @@ BOOST_AUTO_TEST_SUITE_END()
 
 BOOST_AUTO_TEST_SUITE(EverythingTest)
 
-    void query(size_t times) {
+    void query(size_t times, std::wstring_view instance_name = {}) {
 	    using namespace Everythings;
-	    Everything ev;
+	    Everything ev(instance_name);
 	    QueryResults results;
 
 	    for (size_t i = 0; i < times; i++) {
@@ -88,12 +88,16 @@ BOOST_AUTO_TEST_SUITE(EverythingTest)
 		query(10);
 	}
 
+	BOOST_AUTO_TEST_CASE(Query_v1_5a) {
+		query(1, L"1.5a");
+	}
+
 BOOST_AUTO_TEST_SUITE_END()
 
 
 BOOST_AUTO_TEST_SUITE(EverythingMTTest)
 
-    void query(size_t times) {
+    void query(size_t times, std::wstring_view instance_name = {}) {
 	    using namespace Everythings;
 	    EverythingMT ev;
 	    QueryResults results;
@@ -124,6 +128,10 @@ BOOST_AUTO_TEST_SUITE(EverythingMTTest)
 
 	BOOST_AUTO_TEST_CASE(Query10) {
 		query(10);
+	}
+
+	BOOST_AUTO_TEST_CASE(Query_v1_5a) {
+		query(1, L"1.5a");
 	}
 
 BOOST_AUTO_TEST_SUITE_END()

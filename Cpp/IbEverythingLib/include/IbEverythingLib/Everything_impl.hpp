@@ -295,7 +295,16 @@ namespace Everythings
     }
 
     template <typename DerivedT>
-    EverythingBase<DerivedT>::EverythingBase(DerivedT& derived): derived(derived) {
+    EverythingBase<DerivedT>::EverythingBase(DerivedT& derived, std::wstring_view instance_name): derived(derived) {
+        using namespace std::literals;
+
+        ipc_class = L"EVERYTHING_TASKBAR_NOTIFICATION"s;
+        if (instance_name.data()) {
+            ipc_class += L"_("sv;
+            ipc_class += instance_name;
+            ipc_class += L')';
+        }
+
         std::promise<HWND> promise_hwnd;
         std::future<HWND> future_hwnd = promise_hwnd.get_future();
 
@@ -439,7 +448,7 @@ namespace Everythings
 
     template <typename DerivedT>
     void EverythingBase<DerivedT>::update_ipc_window() {
-        ipc_window = FindWindowW(L"EVERYTHING_TASKBAR_NOTIFICATION", 0);
+        ipc_window = FindWindowW(ipc_class.c_str(), 0);
     }
 
     template <typename DerivedT>
@@ -471,7 +480,7 @@ namespace Everythings
         results_read = std::promise<bool>();
     }
 
-    inline Everything::Everything(): EverythingBase(*this) {}
+    inline Everything::Everything(std::wstring_view instance_name): EverythingBase(*this, instance_name) {}
 
     inline Everything::~Everything() {
         // exit waiting for results_read
@@ -524,7 +533,7 @@ namespace Everythings
         }
     }
 
-    inline EverythingMT::EverythingMT(): EverythingBase(*this) {}
+    inline EverythingMT::EverythingMT(std::wstring_view instance_name): EverythingBase(*this, instance_name) {}
 
     inline EverythingMT::~EverythingMT() {}
 

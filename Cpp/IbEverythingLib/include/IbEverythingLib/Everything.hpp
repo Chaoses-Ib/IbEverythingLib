@@ -155,7 +155,7 @@ namespace Everythings {
     template <typename DerivedT>
     class EverythingBase {
     public:
-        static bool is_ipc_available();
+        bool is_ipc_available();
         std::future<bool> ipc_availalbe_future();
 
         enum class TargetMachine : uint32_t {
@@ -186,15 +186,16 @@ namespace Everythings {
         bool is_info_indexed(Info info) const;
 
     protected:
-        EverythingBase(DerivedT& derived);
+        EverythingBase(DerivedT& derived, std::wstring_view instance_name = {});
         ~EverythingBase();
 
         bool query_send(std::wstring_view search, SearchFlags search_flags, RequestFlags request_flags, Sort sort = Sort::Name_Ascending, DWORD id = 0, DWORD offset = 0, DWORD max_results = 0xFFFFFFFF);
     
         DerivedT& derived;
 
-        static inline HWND ipc_window;
-        static void update_ipc_window();
+        std::wstring ipc_class;
+        HWND ipc_window;
+        void update_ipc_window();
         HANDLE ipc_event = nullptr;  // #TODO: std::shared_ptr
         uint32_t send_ipc_dword(uint32_t command, uintptr_t param = 0) const;
 
@@ -225,7 +226,7 @@ namespace Everythings {
 
     class Everything : public EverythingBase<Everything> {
     public:
-        Everything();
+        Everything(std::wstring_view instance_name = {});
         ~Everything();
 
         using EverythingBase::query_send;
@@ -251,7 +252,7 @@ namespace Everythings {
     // Thread-safe
     class EverythingMT : public EverythingBase<EverythingMT> {
     public:
-        EverythingMT();
+        EverythingMT(std::wstring_view instance_name = {});
         ~EverythingMT();
 
         std::future<QueryResults> query_send(std::wstring_view search, SearchFlags search_flags, RequestFlags request_flags, Sort sort = Sort::Name_Ascending, DWORD offset = 0, DWORD max_results = 0xFFFFFFFF);

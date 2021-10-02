@@ -12,6 +12,15 @@ BOOST_AUTO_TEST_SUITE(EverythingBaseTest)
 		Everything ev;
 		Everything::Version v = ev.get_version();
 		BOOST_TEST_MESSAGE(fmt::format("{}.{}.{}.{} {}", v.major, v.minor, v.revision, v.build, v.target_machine));
+	    // e.g. 1.4.1.1009 2
+    }
+
+	BOOST_AUTO_TEST_CASE(GetVersion_v1_5a) {
+		using namespace Everythings;
+		Everything ev(L"1.5a");
+		Everything::Version v = ev.get_version();
+		BOOST_TEST_MESSAGE(fmt::format("{}.{}.{}.{} {}", v.major, v.minor, v.revision, v.build, v.target_machine));
+	    // e.g. 1.5.0.1278 2
     }
 
     BOOST_AUTO_TEST_CASE(IsDatabaseLoaded) {

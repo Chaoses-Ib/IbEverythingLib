@@ -2,7 +2,7 @@
 #include <boost/test/unit_test.hpp>
 #include <fmt/format.h>
 
-#include <IbEverythingLib/Everything.hpp>
+#include <IbEverything/Everything.hpp>
 
 
 BOOST_AUTO_TEST_SUITE(EverythingBaseTest)

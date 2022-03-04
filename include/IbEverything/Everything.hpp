@@ -7,7 +7,7 @@
 #include <mutex>
 #include <future>
 #include <Windows.h>
-#include <IbWinCppLib/WinCppLib.hpp>
+#include <IbWinCpp/WinCppLib.hpp>
 
 namespace Everythings {
 

@@ -1,7 +1,7 @@
 ﻿#include <iostream>
 #include <iomanip>
 #include <string>
-#include "IbEverythingLib/include/IbEverythingLib/Everything.hpp"
+#include <IbEverything/Everything.hpp>
 
 #pragma comment(lib, "winmm.lib")
 

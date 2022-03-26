@@ -7,14 +7,15 @@ A C++17 library for [Everything](https://www.voidtools.com/).
 * Support [named instances](https://www.voidtools.com/en-us/support/everything/multiple_instances/#named_instances).
 
 ## Building
+CMake:
 ```cmd
-mkdir external
-cd external
-git clone --depth 1 https://github.com/Chaoses-Ib/IbWinCppLib.git
-cd ..
-
 mkdir build
 cd build
 cmake ..
-cmake --build .
+cmake --build . --config Release
 ```
+For the test:
+```
+vcpkg install boost-test fmt
+```
+And add `-DBUILD_TESTING=ON` when calling `cmake ..` .

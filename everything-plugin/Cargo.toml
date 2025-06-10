@@ -1,0 +1,12 @@
+[package]
+name = "everything-plugin"
+version = "0.1.0"
+edition = "2024"
+description = "Rust binding for Everything's plugin SDK"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+
+[dependencies]

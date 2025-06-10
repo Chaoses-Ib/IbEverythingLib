@@ -1,0 +1,10 @@
+[workspace]
+members = ["everything-plugin"]
+resolver = "3"
+
+[workspace.package]
+authors = ["Chaoses-Ib"]
+homepage = "https://github.com/Chaoses-Ib/IbEverythingLib"
+repository = "https://github.com/Chaoses-Ib/IbEverythingLib"
+license = "MIT"
+keywords = ["everything", "voidtools", "sdk", "plugin", "binding"]

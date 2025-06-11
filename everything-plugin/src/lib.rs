@@ -153,22 +153,29 @@ impl PluginHost {
         unsafe { self.get_proc_address.unwrap_unchecked() }
     }
 
-    pub fn get(&self, name: &str) -> Option<*const c_void> {
+    pub unsafe fn get<T: Copy>(&self, name: &str) -> Option<T> {
+        assert_eq!(mem::size_of::<T>(), mem::size_of::<fn()>());
+
         trace!(name, "Plugin host get proc address");
         let name = CString::new(name).unwrap();
         let ptr = unsafe { (self.get_proc_address())(name.as_ptr() as _) };
-        if ptr.is_null() { None } else { Some(ptr) }
+        if ptr.is_null() {
+            None
+        } else {
+            // let f: fn() = unsafe { mem::transmute(ptr) };
+            Some(unsafe { mem::transmute_copy(&ptr) })
+        }
     }
 
     pub fn ui_options_add_plugin_page(&self, data: *mut c_void, name: &str) {
-        let ui_options_add_plugin_page = self.get("ui_options_add_plugin_page").unwrap();
         // Not in header
         let ui_options_add_plugin_page: unsafe extern "system" fn(
             add_custom_page: *mut c_void,
             user_data: *mut c_void,
             name: *const sys::everything_plugin_utf8_t,
         )
-            -> *mut ::std::os::raw::c_void = unsafe { mem::transmute(ui_options_add_plugin_page) };
+            -> *mut ::std::os::raw::c_void =
+            unsafe { self.get("ui_options_add_plugin_page") }.unwrap();
         let name = CString::new(name).unwrap();
         unsafe { ui_options_add_plugin_page(data, 0 as _, name.as_ptr() as _) };
     }

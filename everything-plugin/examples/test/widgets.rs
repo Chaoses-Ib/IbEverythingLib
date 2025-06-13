@@ -1,5 +1,6 @@
 //! https://github.com/compio-rs/winio/blob/d57fa507ba27a4dc71887f202ec4eb594f5acb0e/examples/widgets.rs
 
+use everything_plugin::ui::{OptionsPageMessage, winio::OptionsPageInit};
 use winio::{
     App, BrushPen, Button, ButtonEvent, Canvas, CanvasEvent, CheckBox, CheckBoxEvent, Child, Color,
     ColorTheme, ComboBox, ComboBoxEvent, ComboBoxMessage, Component, ComponentSender,
@@ -10,16 +11,17 @@ use winio::{
     Window, WindowEvent,
 };
 
+#[allow(dead_code)]
 fn main() {
-    #[cfg(feature = "enable_log")]
-    tracing_subscriber::fmt()
-        .with_max_level(compio_log::Level::INFO)
-        .init();
+    // #[cfg(feature = "enable_log")]
+    // tracing_subscriber::fmt()
+    //     .with_max_level(compio_log::Level::INFO)
+    //     .init();
 
     App::new().run::<MainModel>(());
 }
 
-struct MainModel {
+pub struct MainModel {
     window: Child<Window>,
     ulabel: Child<Label>,
     plabel: Child<Label>,
@@ -42,7 +44,7 @@ struct MainModel {
 }
 
 #[derive(Debug)]
-enum MainMessage {
+pub enum MainMessage {
     Noop,
     Close,
     Redraw,
@@ -53,15 +55,23 @@ enum MainMessage {
     Show,
     RSelect(usize),
     PasswordCheck,
+    OptionsPage(OptionsPageMessage),
+}
+
+impl From<OptionsPageMessage> for MainMessage {
+    fn from(value: OptionsPageMessage) -> Self {
+        Self::OptionsPage(value)
+    }
 }
 
 impl Component for MainModel {
     type Event = ();
-    type Init<'a> = ();
+    type Init<'a> = OptionsPageInit<'a>;
     type Message = MainMessage;
 
-    fn init(_init: Self::Init<'_>, _sender: &ComponentSender<Self>) -> Self {
-        let mut window = Child::<Window>::init(());
+    fn init(mut init: Self::Init<'_>, sender: &ComponentSender<Self>) -> Self {
+        // let mut window = Child::<Window>::init(init);
+        let mut window = init.window(sender);
         let canvas = Child::<Canvas>::init(&window);
 
         window.set_text("Widgets example");
@@ -263,6 +273,16 @@ impl Component for MainModel {
                     .buttons(MessageBoxButton::Ok)
                     .show(Some(&*self.window))
                     .await;
+                false
+            }
+            MainMessage::OptionsPage(m) => {
+                tracing::debug!(?m, "Options page message");
+                match m {
+                    OptionsPageMessage::Save => (),
+                    OptionsPageMessage::Kill => {
+                        sender.output(());
+                    }
+                }
                 false
             }
         }

@@ -37,3 +37,7 @@ rev = "d57fa507ba27a4dc71887f202ec4eb594f5acb0e"
 [[example]]
 name = "test"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "basic"
+crate-type = ["cdylib"]

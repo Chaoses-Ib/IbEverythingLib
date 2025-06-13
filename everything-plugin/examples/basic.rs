@@ -1,12 +1,12 @@
-# everything-plugin
-Rust binding for [Everything](https://www.voidtools.com/)'s [plugin SDK](https://www.voidtools.com/forum/viewtopic.php?t=16535).
+use std::ffi::c_void;
 
-Features:
-- Can make options pages GUI using [Winio](https://github.com/compio-rs/winio) in MVU (Elm) architecture
+use everything_plugin::{
+    PluginHandler, handler_or_init,
+    ui::{self, OptionsPage},
+};
 
-Example:
-```rust
-mod options;
+#[path = "test/widgets.rs"]
+mod widgets;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn everything_plugin_proc(msg: u32, data: *mut c_void) -> *mut c_void {
@@ -20,16 +20,10 @@ pub extern "system" fn everything_plugin_proc(msg: u32, data: *mut c_void) -> *m
             .options_pages(vec![
                 OptionsPage::builder()
                     .name("Test Plugin")
-                    .load(ui::winio::spawn::<options::MainModel>)
+                    .load(ui::winio::spawn::<widgets::MainModel>)
                     .build(),
             ])
             .build()
     })
     .handle(msg, data)
 }
-```
-
-## Debugging
-- `.\Everything64.exe -debug`
-  
-  Unlike `-debug`, `-debug-log` doesn't work with stdout/stderr outputs.

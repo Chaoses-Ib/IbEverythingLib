@@ -122,7 +122,11 @@ impl Component for MainModel {
         progress.set_indeterminate(true);
 
         let mut mltext = Child::<TextBox>::init(&window);
-        mltext.set_text("This is an example of\nmulti-line text box.");
+        mltext.set_text(
+            everything_plugin::handler()
+                .config()
+                .unwrap_or("This is an example of multi-line text box."),
+        );
 
         window.show();
 
@@ -278,7 +282,7 @@ impl Component for MainModel {
             MainMessage::OptionsPage(m) => {
                 tracing::debug!(?m, "Options page message");
                 match m {
-                    OptionsPageMessage::Save => (),
+                    OptionsPageMessage::Save(tx) => tx.send(self.mltext.text()).unwrap(),
                     OptionsPageMessage::Kill => {
                         sender.output(());
                     }

@@ -1,12 +1,16 @@
+use core::str;
 use std::{
     cell::OnceCell,
     ffi::{CString, c_void},
     mem,
+    ops::Deref,
+    slice,
 };
 
 use bon::Builder;
 use tracing::{debug, trace};
 
+pub mod data;
 pub mod sys;
 pub mod ui;
 
@@ -26,7 +30,7 @@ pub fn handler_init(handler: PluginHandler) {
     _ = unsafe { &*&raw const PLUGIN_HANDLER }.set(handler);
 }
 
-pub unsafe fn handler() -> &'static PluginHandler {
+pub fn handler() -> &'static PluginHandler {
     unsafe { (&*&raw const PLUGIN_HANDLER).get().unwrap_unchecked() }
 }
 
@@ -56,6 +60,19 @@ pub struct PluginHandler {
     version: Option<CString>,
     #[builder(with = |x: impl Into<String>| CString::new(x.into()).unwrap())]
     link: Option<CString>,
+
+    /// Must be single-line. Chars after the first newline cannot be read.
+    ///
+    /// ## Lifetime
+    /// - May be set with [`PluginHandler::builder()`] (as default value)
+    /// - May be loaded when [`sys::EVERYTHING_PLUGIN_PM_START`]
+    /// - Be read when start
+    /// - Be read when loading (and rendering) options pages ([`sys::EVERYTHING_PLUGIN_PM_LOAD_OPTIONS_PAGE`])
+    /// - Be written/applied when [`sys::EVERYTHING_PLUGIN_PM_SAVE_OPTIONS_PAGE`], zero, one or multiple times
+    /// - Be saved when [`sys::EVERYTHING_PLUGIN_PM_SAVE_SETTINGS`] (can occur without prior [`sys::EVERYTHING_PLUGIN_PM_SAVE_OPTIONS_PAGE`])
+    ///
+    /// TODO: `<T>`?
+    config: Option<String>,
 
     #[builder(default)]
     options_pages: Vec<ui::OptionsPage>,
@@ -118,6 +135,9 @@ impl PluginHandler {
             }
             sys::EVERYTHING_PLUGIN_PM_START => {
                 debug!("Plugin start");
+
+                self.load_settings(data);
+
                 1 as _
             }
             sys::EVERYTHING_PLUGIN_PM_STOP => {
@@ -140,18 +160,29 @@ impl PluginHandler {
             sys::EVERYTHING_PLUGIN_PM_SIZE_OPTIONS_PAGE => self.size_options_page(data),
             sys::EVERYTHING_PLUGIN_PM_OPTIONS_PAGE_PROC => self.options_page_proc(data),
             sys::EVERYTHING_PLUGIN_PM_KILL_OPTIONS_PAGE => self.kill_options_page(data),
-            sys::EVERYTHING_PLUGIN_PM_SAVE_SETTINGS => {
-                debug!("Plugin save settings");
-                0 as _
-            }
+            sys::EVERYTHING_PLUGIN_PM_SAVE_SETTINGS => self.save_settings(data),
             _ => {
                 debug!(msg, ?data, "Plugin message");
                 0 as _
             }
         }
     }
+
+    pub fn config(&self) -> Option<&str> {
+        self.config.as_deref()
+    }
 }
 
+/// - [ ] `config_*`
+/// - [ ] `db_*`
+/// - [ ] `debug_*` (tracing)
+/// - [ ] `localization_get_*`
+/// - [x] `os_get_(local_)?app_data_path_cat_filename`
+/// - [x] `plugin_?et_setting_string`
+/// - [ ] `property_*`
+/// - [x] `ui_options_add_plugin_page`
+/// - [x] `utf8_buf_(init|kill)`
+/// - [ ] `version_get_*`, `plugin_get_version`
 pub struct PluginHost {
     get_proc_address: sys::everything_plugin_get_proc_address_t,
 }
@@ -187,21 +218,55 @@ impl PluginHost {
         }
     }
 
-    pub fn ui_options_add_plugin_page(
-        &self,
-        data: *mut c_void,
-        user_data: *mut c_void,
-        name: &str,
-    ) {
-        // Not in header
-        let ui_options_add_plugin_page: unsafe extern "system" fn(
-            add_custom_page: *mut c_void,
-            user_data: *mut c_void,
-            name: *const sys::everything_plugin_utf8_t,
-        )
-            -> *mut ::std::os::raw::c_void =
-            unsafe { self.get("ui_options_add_plugin_page") }.unwrap();
-        let name = CString::new(name).unwrap();
-        unsafe { ui_options_add_plugin_page(data, user_data, name.as_ptr() as _) };
+    /// Initialize a cbuf with an empty string.
+    ///
+    /// The cbuf must be killed with [`Self::utf8_buf_kill`]
+    ///
+    /// See also [`Self::utf8_buf_kill`]
+    ///
+    /// ## Note
+    /// Usage:
+    /// ```ignore
+    /// let mut cbuf = MaybeUninit::uninit();
+    /// host.utf8_buf_init(cbuf.as_mut_ptr());
+    ///
+    /// unsafe { os_get_app_data_path_cat_filename(filename.as_ptr() as _, cbuf.as_mut_ptr()) };
+    ///
+    /// // Or `utf8_buf_kill()`
+    /// self.utf8_buf_into_string(cbuf.as_mut_ptr())
+    /// ```
+    /// Do not move [`sys::everything_plugin_utf8_buf_t`].
+    pub fn utf8_buf_init(&self, cbuf: *mut sys::everything_plugin_utf8_buf_t) {
+        let utf8_buf_init: unsafe extern "system" fn(cbuf: *mut sys::everything_plugin_utf8_buf_t) =
+            unsafe { self.get("utf8_buf_init") }.unwrap();
+        unsafe { utf8_buf_init(cbuf) };
+    }
+
+    /// Kill a cbuf initialized with [`Self::utf8_buf_init`].
+    ///
+    /// Any allocated memory is returned to the system.
+    ///
+    /// See also [`Self::utf8_buf_init`]
+    pub fn utf8_buf_kill(&self, cbuf: *mut sys::everything_plugin_utf8_buf_t) {
+        let utf8_buf_kill: unsafe extern "system" fn(cbuf: *mut sys::everything_plugin_utf8_buf_t) =
+            unsafe { self.get("utf8_buf_kill") }.unwrap();
+        unsafe { utf8_buf_kill(cbuf) };
+    }
+
+    pub fn utf8_buf_into_string(&self, cbuf: *mut sys::everything_plugin_utf8_buf_t) -> String {
+        let s = unsafe { (*cbuf).to_string() };
+        self.utf8_buf_kill(cbuf);
+        s
+    }
+}
+
+impl Deref for sys::everything_plugin_utf8_buf_t {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe {
+            // str::from_raw_parts(self.buf, self.len)
+            str::from_utf8_unchecked(slice::from_raw_parts(self.buf, self.len))
+        }
     }
 }

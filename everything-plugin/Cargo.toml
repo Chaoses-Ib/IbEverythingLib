@@ -11,7 +11,7 @@ keywords.workspace = true
 
 [features]
 default = ["tracing", "serde", "winio", "winio-darkmode"]
-tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:anstream"]
+tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-panic", "dep:anstream"]
 serde = ["dep:serde", "dep:serde_json"]
 ui = ["dep:windows-sys", "windows-sys/Win32_UI_WindowsAndMessaging", "dep:futures-channel", "dep:futures-util"]
 winio = ["ui", "dep:winio"]
@@ -25,6 +25,7 @@ futures-util = { version = "0.3", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 tracing = { version = "0.1", optional = true }
+tracing-panic = { version = "0.1.2", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
 windows-sys = { version = "0.59", optional = true }
 

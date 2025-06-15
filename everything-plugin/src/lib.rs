@@ -11,18 +11,9 @@ use bon::Builder;
 use tracing::{debug, trace};
 
 pub mod data;
+pub mod log;
 pub mod sys;
 pub mod ui;
-
-/// A convenient function to initialize [`tracing`] with a default configuration.
-#[cfg(feature = "tracing")]
-pub fn tracing_init() {
-    tracing_subscriber::fmt()
-        // TODO: Non-block?
-        .with_writer(anstream::stderr)
-        .with_max_level(tracing::Level::DEBUG)
-        .init();
-}
 
 static mut PLUGIN_HANDLER: OnceCell<PluginHandler> = OnceCell::new();
 
@@ -90,7 +81,7 @@ impl PluginHandler {
         match msg {
             sys::EVERYTHING_PLUGIN_PM_INIT => {
                 #[cfg(feature = "tracing")]
-                tracing_init();
+                log::tracing_init();
                 debug!("Plugin init");
 
                 _ = self.host.set(unsafe { PluginHost::from_data(data) });

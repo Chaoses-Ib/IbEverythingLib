@@ -10,11 +10,13 @@ license.workspace = true
 keywords.workspace = true
 
 [features]
-default = ["tracing", "serde", "winio", "winio-darkmode"]
+default = ["tracing", "serde", "winio"]
 tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-panic", "dep:anstream"]
 serde = ["dep:serde", "dep:serde_json"]
 ui = ["dep:windows-sys", "windows-sys/Win32_UI_WindowsAndMessaging", "dep:futures-channel", "dep:futures-util"]
 winio = ["ui", "dep:winio"]
+# 1214 -> 1233 KiB
+# TODO: Affect Everything labels, limit to thread local?
 winio-darkmode = ["winio/windows-dark-mode"]
 
 [dependencies]

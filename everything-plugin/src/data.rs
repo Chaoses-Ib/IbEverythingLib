@@ -8,40 +8,48 @@
 
 use std::{
     ffi::{CStr, CString, c_void},
+    fmt::Debug,
     mem::MaybeUninit,
     path::PathBuf,
 };
 
 use serde::{Serialize, de::DeserializeOwned};
-use tracing::debug;
+use tracing::{debug, error};
 
-use crate::{PluginHandler, PluginHost, sys};
+use crate::{PluginApp, PluginHandler, PluginHost, sys};
 
-pub trait Config: Serialize + DeserializeOwned {}
+pub trait Config: Serialize + DeserializeOwned + Send + Debug + 'static {}
 
-impl<T: Serialize + DeserializeOwned> Config for T {}
+impl<T: Serialize + DeserializeOwned + Send + Debug + 'static> Config for T {}
 
-impl PluginHandler {
-    pub fn load_settings(&mut self, data: *mut c_void) {
+impl<A: PluginApp> PluginHandler<A> {
+    pub fn load_settings(&self, data: *mut c_void) -> Option<A::Config> {
         let s = self.host().plugin_get_setting_string(data, "_", 0 as _);
         if !s.is_null() {
-            let config = unsafe { CStr::from_ptr(s as _) }
-                .to_string_lossy()
-                .to_string();
-            debug!(config, "Plugin config");
-            self.config = Some(config);
+            let config = unsafe { CStr::from_ptr(s as _) };
+            debug!(
+                config = %config.to_str().unwrap_or("Invalid UTF-8"),
+                "Plugin config",
+            );
+            match serde_json::from_slice(config.to_bytes()) {
+                Ok(config) => Some(config),
+                Err(e) => {
+                    error!(%e, "Plugin config parse error");
+                    None
+                }
+            }
+        } else {
+            None
         }
     }
 
     pub fn save_settings(&self, data: *mut c_void) -> *mut c_void {
-        debug!(config = self.config, "Plugin save settings");
+        let config = unsafe { self.app() }.config();
+        let config = serde_json::to_string(config).unwrap();
+        debug!(%config, "Plugin save settings");
 
-        if let Some(config) = &self.config {
-            self.host().plugin_set_setting_string(data, "_", config);
-            1 as _
-        } else {
-            0 as _
-        }
+        self.host().plugin_set_setting_string(data, "_", &config);
+        1 as _
     }
 }
 

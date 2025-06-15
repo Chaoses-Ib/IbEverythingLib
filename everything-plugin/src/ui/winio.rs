@@ -11,26 +11,31 @@ use tracing::debug;
 use windows_sys::Win32::{Foundation::HWND, UI::WindowsAndMessaging::WS_OVERLAPPEDWINDOW};
 use winio::{App, BorrowedWindow, Child, Component, ComponentSender, Window};
 
-use crate::ui::{OptionsPageLoadArgs, OptionsPageMessage, PageHandle};
+use crate::{
+    PluginApp,
+    ui::{OptionsPageLoadArgs, OptionsPageMessage, PageHandle},
+};
 
-pub trait OptionsPageComponent<'a>:
-    Component<Init<'a> = OptionsPageInit<'a>, Message: From<OptionsPageMessage>> + 'static
+pub trait OptionsPageComponent<'a, A: PluginApp>:
+    Component<Init<'a> = OptionsPageInit<'a, A>, Message: From<OptionsPageMessage<A>>> + 'static
 {
 }
 
-impl<'a, T> OptionsPageComponent<'a> for T where
-    T: Component<Init<'a> = OptionsPageInit<'a>, Message: From<OptionsPageMessage>> + 'static
+impl<'a, T, A: PluginApp> OptionsPageComponent<'a, A> for T where
+    T: Component<Init<'a> = OptionsPageInit<'a, A>, Message: From<OptionsPageMessage<A>>> + 'static
 {
 }
 
-pub fn spawn<'a, T: OptionsPageComponent<'a>>(args: OptionsPageLoadArgs) -> PageHandle {
+pub fn spawn<'a, A: PluginApp, T: OptionsPageComponent<'a, A>>(
+    args: OptionsPageLoadArgs,
+) -> PageHandle<A> {
     // *c_void, HWND: !Send
     let parent: usize = unsafe { mem::transmute(args.parent) };
 
     let (tx, rx) = mpsc::unbounded();
     let thread_handle = std::thread::spawn(move || {
         let parent: HWND = unsafe { mem::transmute(parent) };
-        run::<T>(OptionsPageInit {
+        run::<A, T>(OptionsPageInit {
             parent: unsafe { BorrowedWindow::borrow_raw(parent) }.into(),
             rx: Some(rx),
         });
@@ -39,21 +44,23 @@ pub fn spawn<'a, T: OptionsPageComponent<'a>>(args: OptionsPageLoadArgs) -> Page
     PageHandle { thread_handle, tx }
 }
 
-pub fn run<'a, T: OptionsPageComponent<'a>>(init: OptionsPageInit<'a>) -> T::Event {
+pub fn run<'a, A: PluginApp, T: OptionsPageComponent<'a, A>>(
+    init: OptionsPageInit<'a, A>,
+) -> T::Event {
     App::new().run::<T>(init)
 }
 
-pub struct OptionsPageInit<'a> {
+pub struct OptionsPageInit<'a, A: PluginApp> {
     /// `MaybeBorrowedWindow`: !Clone
     parent: Option<BorrowedWindow<'a>>,
 
     /// Workaround for listening to external messages.
     ///
     /// A new channel is used instead of [`ComponentSender<T>`] to erase the type and keep dyn compatible.
-    rx: Option<mpsc::UnboundedReceiver<OptionsPageMessage>>,
+    rx: Option<mpsc::UnboundedReceiver<OptionsPageMessage<A>>>,
 }
 
-impl<'a> From<()> for OptionsPageInit<'a> {
+impl<'a, A: PluginApp> From<()> for OptionsPageInit<'a, A> {
     fn from(_: ()) -> Self {
         Self {
             parent: None,
@@ -62,8 +69,8 @@ impl<'a> From<()> for OptionsPageInit<'a> {
     }
 }
 
-impl<'a> OptionsPageInit<'a> {
-    pub fn window<T: OptionsPageComponent<'a>>(
+impl<'a, A: PluginApp> OptionsPageInit<'a, A> {
+    pub fn window<T: OptionsPageComponent<'a, A>>(
         &mut self,
         sender: &ComponentSender<T>,
     ) -> Child<Window> {
@@ -72,7 +79,7 @@ impl<'a> OptionsPageInit<'a> {
         window
     }
 
-    pub fn init<T: OptionsPageComponent<'a>>(
+    pub fn init<T: OptionsPageComponent<'a, A>>(
         &mut self,
         window: &mut Window,
         sender: &ComponentSender<T>,

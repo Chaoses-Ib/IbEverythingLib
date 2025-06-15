@@ -2,31 +2,56 @@
 Rust binding for [Everything](https://www.voidtools.com/)'s [plugin SDK](https://www.voidtools.com/forum/viewtopic.php?t=16535).
 
 Features:
-- Can make options pages GUI using [Winio](https://github.com/compio-rs/winio) in MVU (Elm) architecture
+- Load and save config with [Serde](https://github.com/serde-rs/serde)
+- Make options pages GUI using [Winio](https://github.com/compio-rs/winio) in MVU (Elm) architecture
+- Log with [tracing](https://github.com/tokio-rs/tracing)
 
 Example:
 ```rust
 mod options;
 
-#[unsafe(no_mangle)]
-pub extern "system" fn everything_plugin_proc(msg: u32, data: *mut c_void) -> *mut c_void {
-    handler_or_init(|| {
-        PluginHandler::builder()
-            .name("Test Plugin")
-            .description("A test plugin for Everything")
-            .author("Chaoses-Ib")
-            .version("0.1.0")
-            .link("https://github.com/Chaoses-Ib/IbEverythingLib")
-            .options_pages(vec![
-                OptionsPage::builder()
-                    .name("Test Plugin")
-                    .load(ui::winio::spawn::<options::MainModel>)
-                    .build(),
-            ])
-            .build()
-    })
-    .handle(msg, data)
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Config {
+    s: String,
 }
+
+pub struct App {
+    config: Config,
+}
+
+impl PluginApp for App {
+    type Config = Config;
+
+    fn new(config: Option<Self::Config>) -> Self {
+        Self {
+            config: config.unwrap_or_default(),
+        }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+
+    fn into_config(self) -> Self::Config {
+        self.config
+    }
+}
+
+plugin_main!(App, {
+    PluginHandler::builder()
+        .name("Test Plugin")
+        .description("A test plugin for Everything")
+        .author("Chaoses-Ib")
+        .version("0.1.0")
+        .link("https://github.com/Chaoses-Ib/IbEverythingLib")
+        .options_pages(vec![
+            OptionsPage::builder()
+                .name("Test Plugin")
+                .load(ui::winio::spawn::<App, options::MainModel>)
+                .build(),
+        ])
+        .build()
+});
 ```
 
 ## Debugging

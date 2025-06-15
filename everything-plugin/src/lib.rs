@@ -1,6 +1,6 @@
 use core::str;
 use std::{
-    cell::OnceCell,
+    cell::{OnceCell, UnsafeCell},
     ffi::{CString, c_void},
     mem,
     ops::Deref,
@@ -10,34 +10,41 @@ use std::{
 use bon::Builder;
 use tracing::{debug, trace};
 
+use crate::data::Config;
+
+pub use serde;
+
 pub mod data;
 pub mod log;
+pub mod macros;
 pub mod sys;
 pub mod ui;
 
-static mut PLUGIN_HANDLER: OnceCell<PluginHandler> = OnceCell::new();
+pub trait PluginApp: 'static {
+    type Config: Config;
 
-pub fn handler_init(handler: PluginHandler) {
-    _ = unsafe { &*&raw const PLUGIN_HANDLER }.set(handler);
+    fn new(config: Option<Self::Config>) -> Self;
+
+    fn config(&self) -> &Self::Config;
+
+    fn into_config(self) -> Self::Config;
 }
 
-pub fn handler() -> &'static PluginHandler {
-    unsafe { (&*&raw const PLUGIN_HANDLER).get().unwrap_unchecked() }
-}
-
-/// You shouldn't and unlikely need to call this function from multiple threads.
-pub fn handler_or_init(init: impl FnOnce() -> PluginHandler) -> &'static mut PluginHandler {
-    unsafe {
-        let handler = &mut *&raw mut PLUGIN_HANDLER;
-        if handler.get().is_none() {
-            handler.set(init()).unwrap_unchecked();
-        }
-        handler.get_mut().unwrap_unchecked()
-    }
-}
-
+/// ## Design
+/// - Config may be accessed from multiple threads, and options pages need to modify it. To avoid race conditions, either config is cloned when modifying, and then [`App`] is reloaded with it, i.e. [`arc_swap::ArcSwap`]; or [`App`] is shutdown before modifying and then restarted.
+/// - User defined static to work around generic static limit.
+///   - Interior mutability to make it easy to use with `static`. But `UnsafeCell` to avoid cost.
+///
+/// Config lifetime:
+/// - May be set with [`PluginHandler::builder()`] (as default value)
+/// - May be loaded when [`sys::EVERYTHING_PLUGIN_PM_START`]
+/// - Be read when start
+/// - Be read when loading (and rendering) options pages ([`sys::EVERYTHING_PLUGIN_PM_LOAD_OPTIONS_PAGE`])
+/// - Be written/applied when [`sys::EVERYTHING_PLUGIN_PM_SAVE_OPTIONS_PAGE`], zero, one or multiple times
+///   - TODO: Defer
+/// - Be saved when [`sys::EVERYTHING_PLUGIN_PM_SAVE_SETTINGS`] (can occur without prior [`sys::EVERYTHING_PLUGIN_PM_SAVE_OPTIONS_PAGE`])
 #[derive(Builder)]
-pub struct PluginHandler {
+pub struct PluginHandler<A: PluginApp> {
     #[builder(default)]
     host: OnceCell<PluginHost>,
 
@@ -52,32 +59,24 @@ pub struct PluginHandler {
     #[builder(with = |x: impl Into<String>| CString::new(x.into()).unwrap())]
     link: Option<CString>,
 
-    /// Must be single-line. Chars after the first newline cannot be read.
-    ///
-    /// ## Lifetime
-    /// - May be set with [`PluginHandler::builder()`] (as default value)
-    /// - May be loaded when [`sys::EVERYTHING_PLUGIN_PM_START`]
-    /// - Be read when start
-    /// - Be read when loading (and rendering) options pages ([`sys::EVERYTHING_PLUGIN_PM_LOAD_OPTIONS_PAGE`])
-    /// - Be written/applied when [`sys::EVERYTHING_PLUGIN_PM_SAVE_OPTIONS_PAGE`], zero, one or multiple times
-    /// - Be saved when [`sys::EVERYTHING_PLUGIN_PM_SAVE_SETTINGS`] (can occur without prior [`sys::EVERYTHING_PLUGIN_PM_SAVE_OPTIONS_PAGE`])
-    ///
-    /// TODO: `<T>`?
-    config: Option<String>,
+    #[builder(default)]
+    app: UnsafeCell<Option<A>>,
 
     #[builder(default)]
-    options_pages: Vec<ui::OptionsPage>,
+    options_pages: Vec<ui::OptionsPage<A>>,
 }
 
-// impl !Send for PluginHandler {}
+unsafe impl<A: PluginApp> Send for PluginHandler<A> {}
+unsafe impl<A: PluginApp> Sync for PluginHandler<A> {}
 
-impl PluginHandler {
+impl<A: PluginApp> PluginHandler<A> {
     /// Not available before handling `EVERYTHING_PLUGIN_PM_INIT`
     pub fn host(&self) -> &PluginHost {
         unsafe { self.host.get().unwrap_unchecked() }
     }
 
-    pub fn handle(&mut self, msg: u32, data: *mut c_void) -> *mut c_void {
+    /// You shouldn't and unlikely need to call this function from multiple threads.
+    pub fn handle(&self, msg: u32, data: *mut c_void) -> *mut c_void {
         match msg {
             sys::EVERYTHING_PLUGIN_PM_INIT => {
                 #[cfg(feature = "tracing")]
@@ -127,21 +126,30 @@ impl PluginHandler {
             sys::EVERYTHING_PLUGIN_PM_START => {
                 debug!("Plugin start");
 
-                self.load_settings(data);
+                self.app_new(self.load_settings(data));
 
                 1 as _
             }
             sys::EVERYTHING_PLUGIN_PM_STOP => {
                 debug!("Plugin stop");
+
+                // TODO
+
                 1 as _
             }
             sys::EVERYTHING_PLUGIN_PM_UNINSTALL => {
                 debug!("Plugin uninstall");
+
+                // TODO
+
                 1 as _
             }
             // Always the last message sent to the plugin
             sys::EVERYTHING_PLUGIN_PM_KILL => {
                 debug!("Plugin kill");
+
+                self.app_into_config();
+
                 1 as _
             }
             sys::EVERYTHING_PLUGIN_PM_ADD_OPTIONS_PAGES => self.add_options_pages(data),
@@ -159,8 +167,30 @@ impl PluginHandler {
         }
     }
 
-    pub fn config(&self) -> Option<&str> {
-        self.config.as_deref()
+    fn app_new(&self, config: Option<A::Config>) {
+        let app = unsafe { &mut *self.app.get() };
+        debug_assert!(app.is_none(), "App already inited");
+        *app = Some(A::new(config));
+    }
+
+    fn app_into_config(&self) -> A::Config {
+        let app = unsafe { &mut *self.app.get() };
+        match app.take() {
+            Some(app) => app.into_config(),
+            None => unreachable!("App not inited"),
+        }
+    }
+
+    /// Not available during saving config and recreated afterwards. Use [`Self::with_app`] instead when possible.
+    pub unsafe fn app(&self) -> &A {
+        unsafe { &*self.app.get() }
+            .as_ref()
+            .expect("App not inited")
+    }
+
+    /// Not available during saving config.
+    pub fn with_app<T>(&self, f: impl FnOnce(&A) -> T) -> T {
+        f(unsafe { self.app() })
     }
 }
 

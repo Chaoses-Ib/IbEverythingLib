@@ -1,8 +1,11 @@
 //! https://github.com/compio-rs/winio/blob/d57fa507ba27a4dc71887f202ec4eb594f5acb0e/examples/widgets.rs
 
-use everything_plugin::ui::{OptionsPageMessage, winio::OptionsPageInit};
+use everything_plugin::{
+    PluginApp,
+    ui::{OptionsPageMessage, winio::OptionsPageInit},
+};
 use winio::{
-    App, BrushPen, Button, ButtonEvent, Canvas, CanvasEvent, CheckBox, CheckBoxEvent, Child, Color,
+    BrushPen, Button, ButtonEvent, Canvas, CanvasEvent, CheckBox, CheckBoxEvent, Child, Color,
     ColorTheme, ComboBox, ComboBoxEvent, ComboBoxMessage, Component, ComponentSender,
     DrawingFontBuilder, Edit, Enable, GradientStop, Grid, HAlign, Label, Layoutable,
     LinearGradientBrush, Margin, MessageBox, MessageBoxButton, ObservableVec, ObservableVecEvent,
@@ -11,6 +14,8 @@ use winio::{
     Window, WindowEvent,
 };
 
+use crate::{App, HANDLER};
+
 #[allow(dead_code)]
 fn main() {
     // #[cfg(feature = "enable_log")]
@@ -18,7 +23,7 @@ fn main() {
     //     .with_max_level(compio_log::Level::INFO)
     //     .init();
 
-    App::new().run::<MainModel>(());
+    winio::App::new().run::<MainModel>(());
 }
 
 pub struct MainModel {
@@ -55,18 +60,18 @@ pub enum MainMessage {
     Show,
     RSelect(usize),
     PasswordCheck,
-    OptionsPage(OptionsPageMessage),
+    OptionsPage(OptionsPageMessage<App>),
 }
 
-impl From<OptionsPageMessage> for MainMessage {
-    fn from(value: OptionsPageMessage) -> Self {
+impl From<OptionsPageMessage<App>> for MainMessage {
+    fn from(value: OptionsPageMessage<App>) -> Self {
         Self::OptionsPage(value)
     }
 }
 
 impl Component for MainModel {
     type Event = ();
-    type Init<'a> = OptionsPageInit<'a>;
+    type Init<'a> = OptionsPageInit<'a, App>;
     type Message = MainMessage;
 
     fn init(mut init: Self::Init<'_>, sender: &ComponentSender<Self>) -> Self {
@@ -122,11 +127,7 @@ impl Component for MainModel {
         progress.set_indeterminate(true);
 
         let mut mltext = Child::<TextBox>::init(&window);
-        mltext.set_text(
-            everything_plugin::handler()
-                .config()
-                .unwrap_or("This is an example of multi-line text box."),
-        );
+        HANDLER.with_app(|a| mltext.set_text(&a.config().s));
 
         window.show();
 
@@ -282,7 +283,10 @@ impl Component for MainModel {
             MainMessage::OptionsPage(m) => {
                 tracing::debug!(?m, "Options page message");
                 match m {
-                    OptionsPageMessage::Save(tx) => tx.send(self.mltext.text()).unwrap(),
+                    OptionsPageMessage::Save(config, tx) => {
+                        config.s = self.mltext.text();
+                        tx.send(config).unwrap()
+                    }
                     OptionsPageMessage::Kill => {
                         sender.output(());
                     }

@@ -1,29 +1,51 @@
-use std::ffi::c_void;
-
 use everything_plugin::{
-    PluginHandler, handler_or_init,
+    PluginApp, PluginHandler, plugin_main,
     ui::{self, OptionsPage},
 };
+use serde::{Deserialize, Serialize};
 
 #[path = "test/widgets.rs"]
-mod widgets;
+mod options;
 
-#[unsafe(no_mangle)]
-pub extern "system" fn everything_plugin_proc(msg: u32, data: *mut c_void) -> *mut c_void {
-    handler_or_init(|| {
-        PluginHandler::builder()
-            .name("Test Plugin")
-            .description("A test plugin for Everything")
-            .author("Chaoses-Ib")
-            .version("0.1.0")
-            .link("https://github.com/Chaoses-Ib/IbEverythingLib")
-            .options_pages(vec![
-                OptionsPage::builder()
-                    .name("Test Plugin")
-                    .load(ui::winio::spawn::<widgets::MainModel>)
-                    .build(),
-            ])
-            .build()
-    })
-    .handle(msg, data)
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Config {
+    s: String,
 }
+
+pub struct App {
+    config: Config,
+}
+
+impl PluginApp for App {
+    type Config = Config;
+
+    fn new(config: Option<Self::Config>) -> Self {
+        Self {
+            config: config.unwrap_or_default(),
+        }
+    }
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+
+    fn into_config(self) -> Self::Config {
+        self.config
+    }
+}
+
+plugin_main!(App, {
+    PluginHandler::builder()
+        .name("Test Plugin")
+        .description("A test plugin for Everything")
+        .author("Chaoses-Ib")
+        .version("0.1.0")
+        .link("https://github.com/Chaoses-Ib/IbEverythingLib")
+        .options_pages(vec![
+            OptionsPage::builder()
+                .name("Test Plugin")
+                .load(ui::winio::spawn::<App, options::MainModel>)
+                .build(),
+        ])
+        .build()
+});

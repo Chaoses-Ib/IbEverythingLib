@@ -1,5 +1,7 @@
 use std::{
+    cell::UnsafeCell,
     ffi::{CString, c_void},
+    fmt::Debug,
     mem,
 };
 
@@ -8,18 +10,33 @@ use futures_channel::mpsc;
 use tracing::{debug, warn};
 use windows_sys::Win32::Foundation::HWND;
 
-use crate::{PluginHandler, PluginHost, sys};
+use crate::{PluginApp, PluginHandler, PluginHost, sys};
 
 #[cfg(feature = "winio")]
 pub mod winio;
 
 #[derive(Builder)]
-pub struct OptionsPage {
+pub struct OptionsPage<A: PluginApp> {
     #[builder(into)]
     name: String,
-    #[builder(with = |x: impl FnMut(OptionsPageLoadArgs) -> PageHandle + 'static| Box::new(x))]
-    load: Box<dyn FnMut(OptionsPageLoadArgs) -> PageHandle>,
-    handle: Option<PageHandle>,
+    #[builder(with = |x: impl FnMut(OptionsPageLoadArgs) -> PageHandle<A> + 'static| UnsafeCell::new(Box::new(x)))]
+    load: UnsafeCell<Box<dyn FnMut(OptionsPageLoadArgs) -> PageHandle<A>>>,
+    #[builder(default)]
+    handle: UnsafeCell<Option<PageHandle<A>>>,
+}
+
+impl<A: PluginApp> OptionsPage<A> {
+    fn load_mut(&self) -> &mut dyn FnMut(OptionsPageLoadArgs) -> PageHandle<A> {
+        unsafe { &mut *self.load.get() }
+    }
+
+    fn handle(&self) -> &Option<PageHandle<A>> {
+        unsafe { &*self.handle.get() }
+    }
+
+    fn handle_mut(&self) -> &mut Option<PageHandle<A>> {
+        unsafe { &mut *self.handle.get() }
+    }
 }
 
 #[derive(Debug)]
@@ -27,22 +44,35 @@ pub struct OptionsPageLoadArgs {
     parent: HWND,
 }
 
-#[derive(Debug)]
-pub enum OptionsPageMessage {
-    /// `(tx)`
+pub enum OptionsPageMessage<A: PluginApp> {
+    /// `(config, tx)`
     ///
     /// Just drop the `tx` if there is no need to save the config (i.e. no changes).
-    Save(std::sync::mpsc::SyncSender<String>),
+    ///
+    /// Note [`PluginHandler::app`] is not available during saving.
+    Save(
+        &'static mut A::Config,
+        std::sync::mpsc::SyncSender<&'static mut A::Config>,
+    ),
     Kill,
 }
 
-pub struct PageHandle {
-    #[allow(dead_code)]
-    thread_handle: std::thread::JoinHandle<()>,
-    tx: mpsc::UnboundedSender<OptionsPageMessage>,
+impl<A: PluginApp> Debug for OptionsPageMessage<A> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OptionsPageMessage::Save(_config, _tx) => write!(f, "OptionsPageMessage::Save"),
+            OptionsPageMessage::Kill => write!(f, "OptionsPageMessage::Kill"),
+        }
+    }
 }
 
-impl PluginHandler {
+pub struct PageHandle<A: PluginApp> {
+    #[allow(dead_code)]
+    thread_handle: std::thread::JoinHandle<()>,
+    tx: mpsc::UnboundedSender<OptionsPageMessage<A>>,
+}
+
+impl<A: PluginApp> PluginHandler<A> {
     pub fn add_options_pages(&self, data: *mut c_void) -> *mut c_void {
         debug!("Plugin add options pages");
         if self.options_pages.is_empty() {
@@ -60,7 +90,7 @@ impl PluginHandler {
     ///
     /// TODO: Enable Apply
     /// TODO: `tooltip_hwnd`
-    pub fn load_options_page(&mut self, data: *mut c_void) -> *mut c_void {
+    pub fn load_options_page(&self, data: *mut c_void) -> *mut c_void {
         debug_assert!(!self.options_pages.is_empty());
 
         let data = unsafe { &mut *(data as *mut sys::everything_plugin_load_options_page_s) };
@@ -70,15 +100,15 @@ impl PluginHandler {
         }
         let page_hwnd: HWND = unsafe { mem::transmute(data.page_hwnd) };
 
-        let page = &mut self.options_pages[data.user_data as usize];
+        let page = &self.options_pages[data.user_data as usize];
 
-        page.handle = Some((page.load)(OptionsPageLoadArgs { parent: page_hwnd }));
+        *page.handle_mut() = Some((page.load_mut())(OptionsPageLoadArgs { parent: page_hwnd }));
 
         1 as _
     }
 
     #[cfg(feature = "winio")]
-    pub fn load_options_page_winio<'a, T: winio::OptionsPageComponent<'a>>(
+    pub fn load_options_page_winio<'a, T: winio::OptionsPageComponent<'a, A>>(
         &self,
         data: *mut c_void,
     ) -> *mut c_void {
@@ -89,12 +119,12 @@ impl PluginHandler {
         }
         let page_hwnd: HWND = unsafe { mem::transmute(data.page_hwnd) };
 
-        winio::spawn::<T>(OptionsPageLoadArgs { parent: page_hwnd });
+        winio::spawn::<A, T>(OptionsPageLoadArgs { parent: page_hwnd });
 
         1 as _
     }
 
-    pub fn save_options_page(&mut self, data: *mut c_void) -> *mut c_void {
+    pub fn save_options_page(&self, data: *mut c_void) -> *mut c_void {
         let data = unsafe { &mut *(data as *mut sys::everything_plugin_save_options_page_s) };
         debug!(?data, "Plugin save options page");
 
@@ -102,17 +132,23 @@ impl PluginHandler {
             return 0 as _;
         }
 
-        let page = &mut self.options_pages[data.user_data as usize];
-        match page.handle.as_ref() {
+        let page = &self.options_pages[data.user_data as usize];
+        match page.handle() {
             Some(handle) => {
                 debug!(is_closed = handle.tx.is_closed(), "Saving options page");
 
                 let (tx, rx) = std::sync::mpsc::sync_channel(1);
-                match handle.tx.unbounded_send(OptionsPageMessage::Save(tx)) {
+
+                let mut config = self.app_into_config();
+                let config_static: &'static mut A::Config = unsafe { mem::transmute(&mut config) };
+                match handle
+                    .tx
+                    .unbounded_send(OptionsPageMessage::Save(config_static, tx))
+                {
                     Ok(()) => {
-                        if let Ok(config) = rx.recv() {
-                            debug!(config, "Options page config");
-                            self.config = Some(config);
+                        if let Ok(_config) = rx.recv() {
+                            debug!(?config, "Options page config");
+                            self.app_new(Some(config));
                         }
                     }
                     Err(_) => (),
@@ -124,30 +160,30 @@ impl PluginHandler {
         0 as _
     }
 
-    pub fn get_options_page_minmax(&mut self, data: *mut c_void) -> *mut c_void {
+    pub fn get_options_page_minmax(&self, _data: *mut c_void) -> *mut c_void {
         // TODO
         0 as _
     }
 
-    pub fn size_options_page(&mut self, data: *mut c_void) -> *mut c_void {
+    pub fn size_options_page(&self, _data: *mut c_void) -> *mut c_void {
         // TODO
         0 as _
     }
 
-    pub fn options_page_proc(&mut self, data: *mut c_void) -> *mut c_void {
+    pub fn options_page_proc(&self, _data: *mut c_void) -> *mut c_void {
         // TODO
         0 as _
     }
 
-    pub fn kill_options_page(&mut self, data: *mut c_void) -> *mut c_void {
+    pub fn kill_options_page(&self, data: *mut c_void) -> *mut c_void {
         debug!(?data, "Plugin kill options page");
 
         if self.options_pages.is_empty() {
             return 0 as _;
         }
 
-        let page = &mut self.options_pages[data as usize];
-        match page.handle.take() {
+        let page = &self.options_pages[data as usize];
+        match page.handle_mut().take() {
             Some(handle) => {
                 debug!(is_closed = handle.tx.is_closed(), "Killing options page");
                 _ = handle.tx.unbounded_send(OptionsPageMessage::Kill);

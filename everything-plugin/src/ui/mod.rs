@@ -108,7 +108,7 @@ impl<A: PluginApp> PluginHandler<A> {
     }
 
     #[cfg(feature = "winio")]
-    pub fn load_options_page_winio<'a, T: winio::OptionsPageComponent<'a, A>>(
+    pub fn load_options_page_winio<'a, T: winio::OptionsPageComponent<'a>>(
         &self,
         data: *mut c_void,
     ) -> *mut c_void {
@@ -119,7 +119,7 @@ impl<A: PluginApp> PluginHandler<A> {
         }
         let page_hwnd: HWND = unsafe { mem::transmute(data.page_hwnd) };
 
-        winio::spawn::<A, T>(OptionsPageLoadArgs { parent: page_hwnd });
+        winio::spawn::<T>(OptionsPageLoadArgs { parent: page_hwnd });
 
         1 as _
     }

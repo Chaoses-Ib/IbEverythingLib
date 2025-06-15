@@ -16,26 +16,30 @@ use crate::{
     ui::{OptionsPageLoadArgs, OptionsPageMessage, PageHandle},
 };
 
-pub trait OptionsPageComponent<'a, A: PluginApp>:
-    Component<Init<'a> = OptionsPageInit<'a, A>, Message: From<OptionsPageMessage<A>>> + 'static
+pub trait OptionsPageComponent<'a>:
+    Component<
+        Init<'a> = OptionsPageInit<'a, Self::App>,
+        Message: From<OptionsPageMessage<Self::App>>,
+    > + 'static
 {
+    type App: PluginApp;
 }
 
-impl<'a, T, A: PluginApp> OptionsPageComponent<'a, A> for T where
-    T: Component<Init<'a> = OptionsPageInit<'a, A>, Message: From<OptionsPageMessage<A>>> + 'static
+impl<'a, T, A: PluginApp> OptionsPageComponent<'a> for T
+where
+    T: Component<Init<'a> = OptionsPageInit<'a, A>, Message: From<OptionsPageMessage<A>>> + 'static,
 {
+    type App = A;
 }
 
-pub fn spawn<'a, A: PluginApp, T: OptionsPageComponent<'a, A>>(
-    args: OptionsPageLoadArgs,
-) -> PageHandle<A> {
+pub fn spawn<'a, T: OptionsPageComponent<'a>>(args: OptionsPageLoadArgs) -> PageHandle<T::App> {
     // *c_void, HWND: !Send
     let parent: usize = unsafe { mem::transmute(args.parent) };
 
     let (tx, rx) = mpsc::unbounded();
     let thread_handle = std::thread::spawn(move || {
         let parent: HWND = unsafe { mem::transmute(parent) };
-        run::<A, T>(OptionsPageInit {
+        run::<T>(OptionsPageInit {
             parent: unsafe { BorrowedWindow::borrow_raw(parent) }.into(),
             rx: Some(rx),
         });
@@ -44,9 +48,7 @@ pub fn spawn<'a, A: PluginApp, T: OptionsPageComponent<'a, A>>(
     PageHandle { thread_handle, tx }
 }
 
-pub fn run<'a, A: PluginApp, T: OptionsPageComponent<'a, A>>(
-    init: OptionsPageInit<'a, A>,
-) -> T::Event {
+pub fn run<'a, T: OptionsPageComponent<'a>>(init: OptionsPageInit<'a, T::App>) -> T::Event {
     App::new().run::<T>(init)
 }
 
@@ -70,7 +72,7 @@ impl<'a, A: PluginApp> From<()> for OptionsPageInit<'a, A> {
 }
 
 impl<'a, A: PluginApp> OptionsPageInit<'a, A> {
-    pub fn window<T: OptionsPageComponent<'a, A>>(
+    pub fn window<T: OptionsPageComponent<'a, App = A>>(
         &mut self,
         sender: &ComponentSender<T>,
     ) -> Child<Window> {
@@ -79,7 +81,7 @@ impl<'a, A: PluginApp> OptionsPageInit<'a, A> {
         window
     }
 
-    pub fn init<T: OptionsPageComponent<'a, A>>(
+    pub fn init<T: OptionsPageComponent<'a, App = A>>(
         &mut self,
         window: &mut Window,
         sender: &ComponentSender<T>,

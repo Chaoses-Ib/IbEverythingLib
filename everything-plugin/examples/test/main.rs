@@ -46,11 +46,11 @@ plugin_main!(App, {
             OptionsPage::builder()
                 .name("Test Plugin")
                 // 359 -> 1077 KiB
-                .load(ui::winio::spawn::<App, widgets::MainModel>)
+                .load(ui::winio::spawn::<widgets::MainModel>)
                 .build(),
             OptionsPage::builder()
                 .name("Test 插件")
-                .load(ui::winio::spawn::<App, widgets::MainModel>)
+                .load(ui::winio::spawn::<widgets::MainModel>)
                 .build(),
         ])
         .build()

@@ -44,7 +44,7 @@ plugin_main!(App, {
         .options_pages(vec![
             OptionsPage::builder()
                 .name("Test Plugin")
-                .load(ui::winio::spawn::<App, options::MainModel>)
+                .load(ui::winio::spawn::<options::MainModel>)
                 .build(),
         ])
         .build()

@@ -1,6 +1,6 @@
 use core::str;
 use std::{
-    cell::{OnceCell, UnsafeCell},
+    cell::{Cell, OnceCell, UnsafeCell},
     ffi::{CString, c_void},
     mem,
     ops::Deref,
@@ -45,7 +45,7 @@ pub trait PluginApp: 'static {
 /// - Be saved when [`sys::EVERYTHING_PLUGIN_PM_SAVE_SETTINGS`] (can occur without prior [`sys::EVERYTHING_PLUGIN_PM_SAVE_OPTIONS_PAGE`])
 #[derive(Builder)]
 pub struct PluginHandler<A: PluginApp> {
-    #[builder(default)]
+    #[builder(skip)]
     host: OnceCell<PluginHost>,
 
     #[builder(with = |x: impl Into<String>| CString::new(x.into()).unwrap())]
@@ -59,11 +59,13 @@ pub struct PluginHandler<A: PluginApp> {
     #[builder(with = |x: impl Into<String>| CString::new(x.into()).unwrap())]
     link: Option<CString>,
 
-    #[builder(default)]
+    #[builder(skip)]
     app: UnsafeCell<Option<A>>,
 
     #[builder(default)]
     options_pages: Vec<ui::OptionsPage<A>>,
+    #[builder(skip)]
+    options_message: Cell<ui::OptionsMessage>,
 }
 
 unsafe impl<A: PluginApp> Send for PluginHandler<A> {}
@@ -198,6 +200,7 @@ impl<A: PluginApp> PluginHandler<A> {
 /// - [ ] `db_*`
 /// - [ ] `debug_*` (tracing)
 /// - [ ] `localization_get_*`
+/// - [x] `os_enable_or_disable_dlg_item`
 /// - [x] `os_get_(local_)?app_data_path_cat_filename`
 /// - [x] `plugin_?et_setting_string`
 /// - [ ] `property_*`

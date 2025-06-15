@@ -7,8 +7,11 @@ use std::{
 
 use bon::Builder;
 use futures_channel::mpsc;
-use tracing::{debug, warn};
-use windows_sys::Win32::Foundation::HWND;
+use tracing::{debug, trace, warn};
+use windows_sys::Win32::{
+    Foundation::HWND,
+    UI::WindowsAndMessaging::{GA_ROOT, GetAncestor, WM_CREATE, WM_CTLCOLORDLG, WM_PARENTNOTIFY},
+};
 
 use crate::{PluginApp, PluginHandler, PluginHost, sys};
 
@@ -88,7 +91,6 @@ impl<A: PluginApp> PluginHandler<A> {
 
     /// Evertyhing only loads a options page when the user selects it
     ///
-    /// TODO: Enable Apply
     /// TODO: `tooltip_hwnd`
     pub fn load_options_page(&self, data: *mut c_void) -> *mut c_void {
         debug_assert!(!self.options_pages.is_empty());
@@ -103,6 +105,13 @@ impl<A: PluginApp> PluginHandler<A> {
         let page = &self.options_pages[data.user_data as usize];
 
         *page.handle_mut() = Some((page.load_mut())(OptionsPageLoadArgs { parent: page_hwnd }));
+
+        // Enable Apply button
+        // Only works when switching to the page after loading the options window
+        // self.host().ui_options_enable_or_disable_apply_button(
+        //     self.host().ui_options_from_page_hwnd(page_hwnd),
+        //     true,
+        // );
 
         1 as _
     }
@@ -157,7 +166,10 @@ impl<A: PluginApp> PluginHandler<A> {
             None => warn!("Options page handle is None, can't save"),
         }
 
-        0 as _
+        // data.enable_apply = 1;
+        self.options_message.set(OptionsMessage::EnableApply(true));
+
+        1 as _
     }
 
     pub fn get_options_page_minmax(&self, _data: *mut c_void) -> *mut c_void {
@@ -170,9 +182,67 @@ impl<A: PluginApp> PluginHandler<A> {
         0 as _
     }
 
-    pub fn options_page_proc(&self, _data: *mut c_void) -> *mut c_void {
-        // TODO
-        0 as _
+    pub fn options_page_proc(&self, data: *mut c_void) -> *mut c_void {
+        let data = unsafe { &mut *(data as *mut sys::everything_plugin_options_page_proc_s) };
+        trace!(?data, "Plugin options page proc");
+
+        let options_hwnd = unsafe { mem::transmute(data.options_hwnd) };
+        // let page_hwnd = unsafe { mem::transmute(data.page_hwnd) };
+        // debug_assert_eq!(
+        //     self.host().ui_options_from_page_hwnd(page_hwnd),
+        //     options_hwnd
+        // );
+
+        // Plugin add options pages
+        // msg: WM_SHOWWINDOW (24), wParam: 1, lParam: 0, page_hwnd: 0x7e1b46
+        // msg: WM_WINDOWPOSCHANGING (70), wParam: 0, lParam: 15718896
+        // msg: WM_WINDOWPOSCHANGED (71), wParam: 0, lParam: 15718896
+        // msg: WM_WINDOWPOSCHANGING (70), wParam: 0, lParam: 15719520
+        // Plugin load options page page_hwnd=0x7e1b46
+        // msg: WM_PARENTNOTIFY (528), wParam: 1, lParam: 597884
+        // msg: WM_WINDOWPOSCHANGING (70), wParam: 0, lParam: 15718928
+        // msg: WM_NCCALCSIZE (131), wParam: 1, lParam: 15718880
+        // if direct: msg: WM_NEXTDLGCTL (40), wParam: 6819452, lParam: 1
+        // msg: WM_NCPAINT (133), wParam: 1, lParam: 0
+        // msg: WM_ERASEBKGND (20), wParam: 1879128502, lParam: 0
+        // msg: WM_WINDOWPOSCHANGED (71), wParam: 0, lParam: 15718928
+        // msg: WM_SIZE (5), wParam: 0, lParam: 39781242
+        // msg: WM_NCPAINT (133), wParam: 1, lParam: 0
+        // msg: WM_ERASEBKGND (20), wParam: 536950527, lParam: 0
+        // msg: WM_CTLCOLORDLG (310), wParam: 536950527, lParam: 8264518
+        // msg: WM_WINDOWPOSCHANGING (70), wParam: 0, lParam: 15716848
+        // msg: WM_PAINT (15), wParam: 0, lParam: 0
+        // msg: WM_WINDOWPOSCHANGING (70), wParam: 0, lParam: 15716848
+        // msg: WM_PAINT (15), wParam: 0, lParam: 0
+
+        match data.msg as u32 {
+            WM_PARENTNOTIFY => {
+                debug!(wParam = data.wParam, "WM_PARENTNOTIFY");
+                match data.wParam as u32 {
+                    WM_CREATE => {
+                        // Only works when switching to the page after loading the options window
+                        // self.host()
+                        //     .ui_options_enable_or_disable_apply_button(options_hwnd, true);
+                    }
+                    _ => (),
+                }
+            }
+            WM_CTLCOLORDLG => {
+                debug!(lParam = ?data.lParam as *const c_void, "WM_CTLCOLORDLG");
+                self.host()
+                    .ui_options_enable_or_disable_apply_button(options_hwnd, true);
+            }
+            _ => (),
+        }
+
+        match self.options_message.take() {
+            OptionsMessage::Noop => (),
+            OptionsMessage::EnableApply(enable) => self
+                .host()
+                .ui_options_enable_or_disable_apply_button(options_hwnd, enable),
+        }
+
+        1 as _
     }
 
     pub fn kill_options_page(&self, data: *mut c_void) -> *mut c_void {
@@ -200,6 +270,19 @@ impl<A: PluginApp> PluginHandler<A> {
     }
 }
 
+#[derive(Default)]
+pub enum OptionsMessage {
+    #[default]
+    Noop,
+    EnableApply(bool),
+}
+
+/// `options_hwnd`
+#[repr(i32)]
+pub enum OptionsDlgItem {
+    ApplyButton = 1001,
+}
+
 impl PluginHost {
     pub fn ui_options_add_plugin_page(
         &self,
@@ -217,5 +300,30 @@ impl PluginHost {
             unsafe { self.get("ui_options_add_plugin_page") }.unwrap();
         let name = CString::new(name).unwrap();
         unsafe { ui_options_add_plugin_page(data, user_data, name.as_ptr() as _) };
+    }
+
+    pub fn ui_options_from_page_hwnd(&self, page_hwnd: HWND) -> HWND {
+        unsafe { GetAncestor(page_hwnd, GA_ROOT) }
+    }
+
+    pub fn ui_options_enable_or_disable_apply_button(&self, options_hwnd: HWND, enable: bool) {
+        self.os_enable_or_disable_dlg_item(
+            options_hwnd,
+            OptionsDlgItem::ApplyButton as i32,
+            enable,
+        );
+    }
+
+    /// Enable or disable a dialog control.
+    ///
+    /// ## Note
+    /// For `options_hwnd`, see [`OptionsDlgItem`].
+    pub fn os_enable_or_disable_dlg_item(&self, parent_hwnd: HWND, id: i32, enable: bool) {
+        let os_enable_or_disable_dlg_item: unsafe extern "system" fn(
+            parent_hwnd: HWND,
+            id: i32,
+            enable: i32,
+        ) = unsafe { self.get("os_enable_or_disable_dlg_item") }.unwrap();
+        unsafe { os_enable_or_disable_dlg_item(parent_hwnd, id, enable as i32) };
     }
 }

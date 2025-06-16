@@ -1,3 +1,10 @@
+//! ## Everything plugin SDK GUI API
+//! Not implemented, just for comparison:
+//! - Button, Checkbox, Edit, GroupBox, Listbox, NumberEdit, PasswordEdit, Static, Tooltip
+//! - set_text, enable, redraw, Listbox API
+//! - File dialogs
+//! - No dark mode support
+
 use std::{
     cell::UnsafeCell,
     ffi::{CString, c_void},
@@ -18,6 +25,8 @@ use crate::{PluginApp, PluginHandler, PluginHost, sys};
 #[cfg(feature = "winio")]
 pub mod winio;
 
+/// TODO: Icon?
+/// TODO: Share one runtime
 #[derive(Builder)]
 pub struct OptionsPage<A: PluginApp> {
     #[builder(into)]
@@ -57,6 +66,7 @@ pub enum OptionsPageMessage<A: PluginApp> {
         &'static mut A::Config,
         std::sync::mpsc::SyncSender<&'static mut A::Config>,
     ),
+    /// TODO: Reuse WindowEvent::Close
     Kill,
 }
 

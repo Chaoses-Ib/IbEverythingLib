@@ -1,3 +1,21 @@
+//! ## Detachable design
+//! The API is designed to allow the app to be easily detached from Everything and run independently. Either for standalone distribution or testing.
+//!
+//! This also means a standalone Winio app can be relatively easily integrated into Everything as a plugin.
+//!
+//! Components:
+//! - tracing
+//! - Winio
+//! - Serde
+//! - [`PluginApp`]
+//! - [`PluginHandler`]
+//!
+//! TODO:
+//! - Tray icon and menu itmes / tabs
+//! - Load & save config with file
+//! - PluginHandler::main()
+//! - Unified host/IPC API
+
 use core::str;
 use std::{
     cell::{Cell, OnceCell, UnsafeCell},
@@ -196,6 +214,7 @@ impl<A: PluginApp> PluginHandler<A> {
     }
 }
 
+/// - [ ] `instance_name` (non-official)
 /// - [ ] `config_*`
 /// - [ ] `db_*`
 /// - [ ] `debug_*` (tracing)

@@ -3,8 +3,15 @@
 //! - `app_data=0`: parent directory of `Everything.exe`/`Everything64.exe`
 //!
 //! Either `plugin_?et_setting_string` or `os_get_(local_)?app_data_path_cat_filename` can be used to read/write configs:
-//! - `plugin_?et_setting_string` depends on plugin message data, is in ini format, must use DLL name as the section and limited to that section
-//! - `os_get_(local_)?app_data_path_cat_filename` is more flexible and can also be used to read/write general data, but be careful with named instances
+//! - `plugin_?et_setting_string`:
+//!   - Depends on plugin message data
+//!   - Is in ini format
+//!   - Must use DLL name as the section and limited to that section
+//!   - Has built-in backup mechanism
+//! - `os_get_(local_)?app_data_path_cat_filename`:
+//!   - Is more flexible
+//!   - Can also be used to read/write general data
+//!   - But be careful with named instances
 
 use std::{
     ffi::{CStr, CString, c_void},

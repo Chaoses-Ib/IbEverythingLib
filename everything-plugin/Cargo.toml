@@ -11,6 +11,7 @@ keywords.workspace = true
 
 [features]
 default = ["tracing", "serde", "winio"]
+# TODO: Disable on release?
 tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-panic", "dep:anstream"]
 serde = ["dep:serde", "dep:serde_json"]
 ui = ["dep:windows-sys", "windows-sys/Win32_UI_WindowsAndMessaging", "dep:futures-channel", "dep:futures-util"]

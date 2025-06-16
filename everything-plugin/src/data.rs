@@ -65,7 +65,7 @@ impl PluginHost {
         let os_get_app_data_path_cat_filename: unsafe extern "system" fn(
             filename: *const sys::everything_plugin_utf8_t,
             cbuf: *mut sys::everything_plugin_utf8_buf_t,
-        ) = unsafe { self.get(name) }.unwrap();
+        ) = unsafe { self.get(name).unwrap_unchecked() };
 
         let filename = CString::new(filename).unwrap();
 
@@ -129,7 +129,7 @@ impl PluginHost {
             name: *const sys::everything_plugin_utf8_t,
             current_string: *mut sys::everything_plugin_utf8_t,
         ) -> *mut sys::everything_plugin_utf8_t =
-            unsafe { self.get("plugin_get_setting_string") }.unwrap();
+            unsafe { self.get("plugin_get_setting_string").unwrap_unchecked() };
         let name = CString::new(name).unwrap();
         unsafe { plugin_get_setting_string(data, name.as_ptr() as _, current_string) }
     }
@@ -157,7 +157,7 @@ impl PluginHost {
             output_stream: sys::everything_plugin_output_stream_t,
             name: *const sys::everything_plugin_utf8_t,
             value: *const sys::everything_plugin_utf8_t,
-        ) = unsafe { self.get("plugin_set_setting_string") }.unwrap();
+        ) = unsafe { self.get("plugin_set_setting_string").unwrap_unchecked() };
         let name = CString::new(name).unwrap();
         let value = CString::new(value).unwrap();
         unsafe { plugin_set_setting_string(data, name.as_ptr() as _, value.as_ptr() as _) };

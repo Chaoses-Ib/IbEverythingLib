@@ -247,6 +247,7 @@ impl PluginHost {
         unsafe { self.get_proc_address.unwrap_unchecked() }
     }
 
+    /// You can `unwrap_unchecked()` if the API exists in all versions of Everything.
     pub unsafe fn get<T: Copy>(&self, name: &str) -> Option<T> {
         assert_eq!(mem::size_of::<T>(), mem::size_of::<fn()>());
 
@@ -281,7 +282,7 @@ impl PluginHost {
     /// Do not move [`sys::everything_plugin_utf8_buf_t`].
     pub fn utf8_buf_init(&self, cbuf: *mut sys::everything_plugin_utf8_buf_t) {
         let utf8_buf_init: unsafe extern "system" fn(cbuf: *mut sys::everything_plugin_utf8_buf_t) =
-            unsafe { self.get("utf8_buf_init") }.unwrap();
+            unsafe { self.get("utf8_buf_init").unwrap_unchecked() };
         unsafe { utf8_buf_init(cbuf) };
     }
 
@@ -292,7 +293,7 @@ impl PluginHost {
     /// See also [`Self::utf8_buf_init`]
     pub fn utf8_buf_kill(&self, cbuf: *mut sys::everything_plugin_utf8_buf_t) {
         let utf8_buf_kill: unsafe extern "system" fn(cbuf: *mut sys::everything_plugin_utf8_buf_t) =
-            unsafe { self.get("utf8_buf_kill") }.unwrap();
+            unsafe { self.get("utf8_buf_kill").unwrap_unchecked() };
         unsafe { utf8_buf_kill(cbuf) };
     }
 

@@ -307,7 +307,7 @@ impl PluginHost {
             name: *const sys::everything_plugin_utf8_t,
         )
             -> *mut ::std::os::raw::c_void =
-            unsafe { self.get("ui_options_add_plugin_page") }.unwrap();
+            unsafe { self.get("ui_options_add_plugin_page").unwrap_unchecked() };
         let name = CString::new(name).unwrap();
         unsafe { ui_options_add_plugin_page(data, user_data, name.as_ptr() as _) };
     }
@@ -333,7 +333,7 @@ impl PluginHost {
             parent_hwnd: HWND,
             id: i32,
             enable: i32,
-        ) = unsafe { self.get("os_enable_or_disable_dlg_item") }.unwrap();
+        ) = unsafe { self.get("os_enable_or_disable_dlg_item").unwrap_unchecked() };
         unsafe { os_enable_or_disable_dlg_item(parent_hwnd, id, enable as i32) };
     }
 }

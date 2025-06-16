@@ -287,9 +287,6 @@ impl Component for MainModel {
                         config.s = self.mltext.text();
                         tx.send(config).unwrap()
                     }
-                    OptionsPageMessage::Kill => {
-                        sender.output(());
-                    }
                 }
                 false
             }

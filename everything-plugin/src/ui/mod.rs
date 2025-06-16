@@ -17,7 +17,9 @@ use futures_channel::mpsc;
 use tracing::{debug, trace, warn};
 use windows_sys::Win32::{
     Foundation::HWND,
-    UI::WindowsAndMessaging::{GA_ROOT, GetAncestor, WM_CREATE, WM_CTLCOLORDLG, WM_PARENTNOTIFY},
+    UI::WindowsAndMessaging::{
+        GA_ROOT, GetAncestor, SendMessageW, WM_CLOSE, WM_CREATE, WM_CTLCOLORDLG, WM_PARENTNOTIFY,
+    },
 };
 
 use crate::{PluginApp, PluginHandler, PluginHost, sys};
@@ -56,6 +58,30 @@ pub struct OptionsPageLoadArgs {
     parent: HWND,
 }
 
+enum OptionsPageInternalMessage<A: PluginApp> {
+    Msg(OptionsPageMessage<A>),
+    /// Map to [`WM_CLOSE`] to reuse `WindowEvent::Close`
+    Kill,
+}
+
+impl<A: PluginApp> From<OptionsPageMessage<A>> for OptionsPageInternalMessage<A> {
+    fn from(msg: OptionsPageMessage<A>) -> Self {
+        OptionsPageInternalMessage::Msg(msg)
+    }
+}
+
+impl<A: PluginApp> OptionsPageInternalMessage<A> {
+    pub fn try_into(self, window: HWND) -> Option<OptionsPageMessage<A>> {
+        match self {
+            OptionsPageInternalMessage::Msg(msg) => Some(msg),
+            OptionsPageInternalMessage::Kill => {
+                unsafe { SendMessageW(window, WM_CLOSE, 0, 0) };
+                None
+            }
+        }
+    }
+}
+
 pub enum OptionsPageMessage<A: PluginApp> {
     /// `(config, tx)`
     ///
@@ -66,15 +92,12 @@ pub enum OptionsPageMessage<A: PluginApp> {
         &'static mut A::Config,
         std::sync::mpsc::SyncSender<&'static mut A::Config>,
     ),
-    /// TODO: Reuse WindowEvent::Close
-    Kill,
 }
 
 impl<A: PluginApp> Debug for OptionsPageMessage<A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OptionsPageMessage::Save(_config, _tx) => write!(f, "OptionsPageMessage::Save"),
-            OptionsPageMessage::Kill => write!(f, "OptionsPageMessage::Kill"),
         }
     }
 }
@@ -82,7 +105,7 @@ impl<A: PluginApp> Debug for OptionsPageMessage<A> {
 pub struct PageHandle<A: PluginApp> {
     #[allow(dead_code)]
     thread_handle: std::thread::JoinHandle<()>,
-    tx: mpsc::UnboundedSender<OptionsPageMessage<A>>,
+    tx: mpsc::UnboundedSender<OptionsPageInternalMessage<A>>,
 }
 
 impl<A: PluginApp> PluginHandler<A> {
@@ -162,7 +185,7 @@ impl<A: PluginApp> PluginHandler<A> {
                 let config_static: &'static mut A::Config = unsafe { mem::transmute(&mut config) };
                 match handle
                     .tx
-                    .unbounded_send(OptionsPageMessage::Save(config_static, tx))
+                    .unbounded_send(OptionsPageMessage::Save(config_static, tx).into())
                 {
                     Ok(()) => {
                         if let Ok(_config) = rx.recv() {
@@ -266,7 +289,7 @@ impl<A: PluginApp> PluginHandler<A> {
         match page.handle_mut().take() {
             Some(handle) => {
                 debug!(is_closed = handle.tx.is_closed(), "Killing options page");
-                _ = handle.tx.unbounded_send(OptionsPageMessage::Kill);
+                _ = handle.tx.unbounded_send(OptionsPageInternalMessage::Kill);
                 #[cfg(debug_assertions)]
                 std::thread::spawn(|| {
                     // debug: ~14ms

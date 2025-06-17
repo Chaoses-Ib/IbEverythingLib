@@ -36,8 +36,8 @@ windows-sys = { version = "0.59", optional = true }
 version = "0.5.0"
 default-features = false
 optional = true
-git = "https://github.com/compio-rs/winio"
-rev = "d57fa507ba27a4dc71887f202ec4eb594f5acb0e"
+# git = "https://github.com/compio-rs/winio"
+# rev = "d57fa507ba27a4dc71887f202ec4eb594f5acb0e"
 
 [dev-dependencies]
 

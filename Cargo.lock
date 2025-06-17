@@ -1942,8 +1942,9 @@ checksum = "271414315aff87387382ec3d271b52d7ae78726f5d44ac98b4f4030c91880486"
 
 [[package]]
 name = "winio"
-version = "0.5.0"
-source = "git+https://github.com/compio-rs/winio?rev=d57fa507ba27a4dc71887f202ec4eb594f5acb0e#d57fa507ba27a4dc71887f202ec4eb594f5acb0e"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5d6f8f58997c46fa641817d42099a35fd0043ba8844473903b1df1a18c9bbe6"
 dependencies = [
  "block2",
  "cfg-if",
@@ -1954,6 +1955,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "image",
+ "libc",
  "objc2",
  "objc2-app-kit",
  "objc2-core-foundation",
@@ -1962,6 +1964,7 @@ dependencies = [
  "objc2-quartz-core",
  "objc2-uniform-type-identifiers",
  "once_cell",
+ "paste",
  "rgb",
  "scoped-tls",
  "slab",

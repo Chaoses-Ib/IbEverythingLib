@@ -16,6 +16,8 @@ use crate::{
     ui::{OptionsPageInternalMessage, OptionsPageLoadArgs, OptionsPageMessage, PageHandle},
 };
 
+pub use winio;
+
 pub trait OptionsPageComponent<'a>:
     Component<
         Init<'a> = OptionsPageInit<'a, Self::App>,

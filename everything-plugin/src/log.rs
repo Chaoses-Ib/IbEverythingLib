@@ -1,3 +1,6 @@
+#[cfg(feature = "tracing")]
+pub use tracing::{debug, error, info, trace, warn};
+
 /// A convenient function to initialize [`tracing`] with a default configuration.
 #[cfg(feature = "tracing")]
 pub fn tracing_init() {

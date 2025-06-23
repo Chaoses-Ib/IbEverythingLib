@@ -311,9 +311,9 @@ namespace Everythings
         thread = std::thread([this, promise_hwnd = std::move(promise_hwnd)]() mutable {
             WNDCLASSEXW wndclass;
             const wchar_t* classname = L"EVERYTHING_DLL_IB";
-            wndclass.cbSize = sizeof WNDCLASSEXW;
+            wndclass.cbSize = sizeof(WNDCLASSEXW);
             if (!GetClassInfoExW(GetModuleHandleW(0), classname, &wndclass)) {
-                wndclass = { sizeof WNDCLASSEXW };  //zero struct
+                wndclass = { sizeof(WNDCLASSEXW) };  //zero struct
                 wndclass.hInstance = GetModuleHandleW(0);
                 wndclass.lpfnWndProc = wndproc;
                 wndclass.lpszClassName = classname;

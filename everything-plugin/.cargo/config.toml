@@ -1,0 +1,3 @@
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))']
+# +99.5 (1215 -> 1315) KiB
+rustflags = ["-C", "target-feature=+crt-static"]

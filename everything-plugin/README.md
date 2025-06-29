@@ -54,6 +54,15 @@ plugin_main!(App, {
 });
 ```
 
+## Build
+### Static CRT
+`.cargo/config.toml`:
+```toml
+[target.'cfg(all(target_os = "windows", target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]
+```
+Increase build size by ~100 KiB.
+
 ## Debugging
 - `.\Everything64.exe -debug`
   

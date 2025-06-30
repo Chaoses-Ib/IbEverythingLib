@@ -43,6 +43,9 @@ pub trait PluginApp: 'static {
 
     fn new(config: Option<Self::Config>) -> Self;
 
+    /// Can be used to start services requiring to access the [`PluginApp`] through [`PluginHandler::with_app()`] or [`PluginHandler::app()`].
+    fn start(&self) {}
+
     fn config(&self) -> &Self::Config;
 
     fn into_config(self) -> Self::Config;
@@ -191,6 +194,7 @@ impl<A: PluginApp> PluginHandler<A> {
         let app = unsafe { &mut *self.app.get() };
         debug_assert!(app.is_none(), "App already inited");
         *app = Some(A::new(config));
+        unsafe { app.as_ref().unwrap_unchecked() }.start();
     }
 
     fn app_into_config(&self) -> A::Config {

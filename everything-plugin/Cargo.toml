@@ -14,7 +14,7 @@ default = ["tracing", "serde", "winio"]
 # TODO: Disable on release?
 tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-panic", "dep:anstream"]
 serde = ["dep:serde", "dep:serde_json"]
-ui = ["dep:windows-sys", "windows-sys/Win32_UI_WindowsAndMessaging", "dep:futures-channel", "dep:futures-util"]
+ui = ["dep:futures-channel", "dep:futures-util"]
 winio = ["ui", "dep:winio"]
 # 1214 -> 1233 KiB
 # TODO: Affect Everything labels, limit to thread local?
@@ -30,7 +30,11 @@ serde_json = { version = "1", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-panic = { version = "0.1.2", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
-windows-sys = { version = "0.59", optional = true }
+widestring = "1"
+windows-sys = { version = "0.59", features = [
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging"
+] }
 
 [dependencies.winio]
 version = ">=0.5,<0.7"

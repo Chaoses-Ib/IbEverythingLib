@@ -33,6 +33,7 @@ use crate::data::Config;
 pub use serde;
 
 pub mod data;
+pub mod ipc;
 pub mod log;
 pub mod macros;
 pub mod sys;
@@ -87,6 +88,10 @@ pub struct PluginHandler<A: PluginApp> {
     options_pages: Vec<ui::OptionsPage<A>>,
     #[builder(skip)]
     options_message: Cell<ui::OptionsMessage>,
+
+    /// TODO: Feature cfg?
+    #[builder(skip)]
+    instance_name: UnsafeCell<Option<String>>,
 }
 
 unsafe impl<A: PluginApp> Send for PluginHandler<A> {}
@@ -107,6 +112,10 @@ impl<A: PluginApp> PluginHandler<A> {
                 debug!("Plugin init");
 
                 _ = self.host.set(unsafe { PluginHost::from_data(data) });
+
+                *unsafe { &mut *self.instance_name.get() } =
+                    self.host().instance_name_from_main_thread();
+                debug!(instance_name = ?self.instance_name());
 
                 1 as _
             }
@@ -190,6 +199,10 @@ impl<A: PluginApp> PluginHandler<A> {
         }
     }
 
+    pub fn instance_name(&self) -> Option<&str> {
+        unsafe { &*self.instance_name.get() }.as_deref()
+    }
+
     fn app_new(&self, config: Option<A::Config>) {
         let app = unsafe { &mut *self.app.get() };
         debug_assert!(app.is_none(), "App already inited");
@@ -218,7 +231,7 @@ impl<A: PluginApp> PluginHandler<A> {
     }
 }
 
-/// - [ ] `instance_name` (non-official)
+/// - [x] `instance_name` (non-official)
 /// - [ ] `config_*`
 /// - [ ] `db_*`
 /// - [ ] `debug_*` (tracing)
@@ -305,6 +318,11 @@ impl PluginHost {
         let s = unsafe { (*cbuf).to_string() };
         self.utf8_buf_kill(cbuf);
         s
+    }
+
+    pub fn instance_name_from_main_thread(&self) -> Option<String> {
+        let ipc_window = self.ipc_window_from_main_thread();
+        ipc_window.and_then(|w| w.instance_name().map(|s| s.to_string()))
     }
 }
 

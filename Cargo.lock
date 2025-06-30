@@ -502,6 +502,7 @@ dependencies = [
  "tracing",
  "tracing-panic",
  "tracing-subscriber",
+ "widestring",
  "windows-sys 0.59.0",
  "winio",
 ]

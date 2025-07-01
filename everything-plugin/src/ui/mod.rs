@@ -337,7 +337,7 @@ impl PluginHost {
         unsafe { ui_options_add_plugin_page(data, user_data, name.as_ptr() as _) };
     }
 
-    pub fn ui_options_from_page_hwnd(&self, page_hwnd: HWND) -> HWND {
+    pub fn ui_options_from_page_hwnd(page_hwnd: HWND) -> HWND {
         unsafe { GetAncestor(page_hwnd, GA_ROOT) }
     }
 

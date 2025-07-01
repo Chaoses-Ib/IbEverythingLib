@@ -31,7 +31,10 @@ impl<T: Serialize + DeserializeOwned + Send + Debug + 'static> Config for T {}
 
 impl<A: PluginApp> PluginHandler<A> {
     pub fn load_settings(&self, data: *mut c_void) -> Option<A::Config> {
-        let s = self.host().plugin_get_setting_string(data, "_", 0 as _);
+        let s = self
+            .get_host()
+            .map(|host| host.plugin_get_setting_string(data, "_", 0 as _))
+            .unwrap_or_default();
         if !s.is_null() {
             let config = unsafe { CStr::from_ptr(s as _) };
             debug!(

@@ -9,11 +9,13 @@
 //! - Serde
 //! - [`PluginApp`]
 //! - [`PluginHandler`]
+//!   - [`PluginHandler::init_start()`]
+//!   - [`PluginHandler::stop_kill()`]
+//!   - [`PluginHandler::get_host()`]
 //!
 //! TODO:
 //! - Tray icon and menu itmes / tabs
 //! - Load & save config with file
-//! - PluginHandler::main()
 //! - Unified host/IPC API
 
 use core::str;
@@ -98,9 +100,27 @@ unsafe impl<A: PluginApp> Send for PluginHandler<A> {}
 unsafe impl<A: PluginApp> Sync for PluginHandler<A> {}
 
 impl<A: PluginApp> PluginHandler<A> {
+    /// Panics if already initialized.
+    pub fn init_start(&self) {
+        self.handle(sys::EVERYTHING_PLUGIN_PM_INIT, 0 as _);
+        self.handle(sys::EVERYTHING_PLUGIN_PM_START, 0 as _);
+    }
+
+    /// Panics if not initialized or already stopped.
+    pub fn stop_kill(&self) {
+        self.handle(sys::EVERYTHING_PLUGIN_PM_STOP, 0 as _);
+        self.handle(sys::EVERYTHING_PLUGIN_PM_KILL, 0 as _);
+    }
+
+    /// `None` before handling `EVERYTHING_PLUGIN_PM_INIT`
+    pub fn get_host(&self) -> Option<&PluginHost> {
+        self.host.get()
+    }
+
     /// Not available before handling `EVERYTHING_PLUGIN_PM_INIT`
     pub fn host(&self) -> &PluginHost {
-        unsafe { self.host.get().unwrap_unchecked() }
+        debug_assert!(self.get_host().is_some(), "Plugin host not inited");
+        unsafe { self.get_host().unwrap_unchecked() }
     }
 
     /// You shouldn't and unlikely need to call this function from multiple threads.
@@ -111,10 +131,12 @@ impl<A: PluginApp> PluginHandler<A> {
                 log::tracing_init();
                 debug!("Plugin init");
 
-                _ = self.host.set(unsafe { PluginHost::from_data(data) });
+                if !data.is_null() {
+                    _ = self.host.set(unsafe { PluginHost::from_data(data) });
+                }
 
                 *unsafe { &mut *self.instance_name.get() } =
-                    self.host().instance_name_from_main_thread();
+                    PluginHost::instance_name_from_main_thread();
                 debug!(instance_name = ?self.instance_name());
 
                 1 as _
@@ -320,8 +342,8 @@ impl PluginHost {
         s
     }
 
-    pub fn instance_name_from_main_thread(&self) -> Option<String> {
-        let ipc_window = self.ipc_window_from_main_thread();
+    pub fn instance_name_from_main_thread() -> Option<String> {
+        let ipc_window = Self::ipc_window_from_main_thread();
         ipc_window.and_then(|w| w.instance_name().map(|s| s.to_string()))
     }
 }

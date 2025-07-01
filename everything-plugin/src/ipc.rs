@@ -73,7 +73,7 @@ impl IpcWindow {
 }
 
 impl PluginHost {
-    pub fn ipc_window_from_main_thread(&self) -> Option<IpcWindow> {
+    pub fn ipc_window_from_main_thread() -> Option<IpcWindow> {
         IpcWindow::from_current_thread()
     }
 }

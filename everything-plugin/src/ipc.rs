@@ -20,7 +20,7 @@ unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL 
     let mut buf = [0; 256];
     let len = unsafe { GetClassNameW(hwnd, buf.as_mut_ptr(), buf.len() as i32) };
     if len > 0 {
-        let class_name = U16Str::from_slice(&buf[..=len as usize]);
+        let class_name = U16Str::from_slice(&buf[..len as usize]);
         // debug!(?hwnd, ?class_name, "enum_windows_proc");
         if class_name
             .as_slice()

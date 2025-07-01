@@ -9,7 +9,7 @@ use futures_channel::mpsc;
 use futures_util::StreamExt;
 use tracing::debug;
 use windows_sys::Win32::{Foundation::HWND, UI::WindowsAndMessaging::WS_OVERLAPPEDWINDOW};
-use winio::{App, AsRawWindow, BorrowedWindow, Child, Component, ComponentSender, Window};
+use winio::prelude::*;
 
 use crate::{
     PluginApp,
@@ -51,7 +51,9 @@ pub fn spawn<'a, T: OptionsPageComponent<'a>>(args: OptionsPageLoadArgs) -> Page
 }
 
 pub fn run<'a, T: OptionsPageComponent<'a>>(init: OptionsPageInit<'a, T::App>) -> T::Event {
-    App::new().run::<T>(init)
+    // The name is only used on Qt and GTK
+    // https://github.com/compio-rs/winio/commit/f25828cc80fc5a39e188e7ed1c158f53ea9b5d56
+    App::new("").run::<T>(init)
 }
 
 pub struct OptionsPageInit<'a, A: PluginApp> {

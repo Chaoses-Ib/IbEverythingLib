@@ -1,6 +1,6 @@
 [package]
 name = "everything-plugin"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2024"
 description = "Rust binding for Everything's plugin SDK"
 authors.workspace = true
@@ -18,7 +18,7 @@ ui = ["dep:futures-channel", "dep:futures-util"]
 winio = ["ui", "dep:winio"]
 # 1214 -> 1233 KiB
 # TODO: Affect Everything labels, limit to thread local?
-winio-darkmode = ["winio/windows-dark-mode"]
+winio-darkmode = ["winio/win32-dark-mode"]
 
 [dependencies]
 anstream = { version = "0.6", optional = true }
@@ -37,7 +37,7 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [dependencies.winio]
-version = ">=0.5,<0.7"
+version = ">=0.7,<0.8"
 default-features = false
 optional = true
 # git = "https://github.com/compio-rs/winio"

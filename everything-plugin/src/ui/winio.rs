@@ -18,6 +18,12 @@ use crate::{
 
 pub use winio;
 
+pub mod prelude {
+    pub use super::{super::OptionsPageMessage, OptionsPageInit};
+    pub use crate::PluginApp;
+    pub use winio::prelude::*;
+}
+
 pub trait OptionsPageComponent<'a>:
     Component<
         Init<'a> = OptionsPageInit<'a, Self::App>,

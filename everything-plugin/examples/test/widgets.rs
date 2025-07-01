@@ -1,10 +1,6 @@
 //! https://github.com/compio-rs/winio/blob/ca97049907a0151168100365ce5e13410f508792/winio/examples/widgets.rs
 
-use everything_plugin::{
-    PluginApp,
-    ui::{OptionsPageMessage, winio::OptionsPageInit},
-};
-use winio::prelude::*;
+use everything_plugin::ui::winio::prelude::*;
 
 use crate::{App, HANDLER};
 

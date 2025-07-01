@@ -1,4 +1,6 @@
 //! https://github.com/compio-rs/winio/blob/ca97049907a0151168100365ce5e13410f508792/winio/examples/widgets.rs
+//!
+//! Legacy style: https://github.com/Chaoses-Ib/IbEverythingLib/blob/c8e6e5f175cff2b4ff2e93acf4c265e9c59ddb39/everything-plugin/examples/test/widgets.rs
 
 use everything_plugin::ui::winio::prelude::*;
 

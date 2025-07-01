@@ -52,3 +52,7 @@ crate-type = ["cdylib"]
 [[example]]
 name = "basic"
 crate-type = ["cdylib"]
+
+[[example]]
+name = "options"
+crate-type = ["cdylib"]

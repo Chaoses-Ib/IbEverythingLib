@@ -31,6 +31,7 @@ pub mod winio;
 /// TODO: Share one runtime
 #[derive(Builder)]
 pub struct OptionsPage<A: PluginApp> {
+    /// If conflicts with other plugins, Everything will append a " (plugin.dll)" suffix.
     #[builder(into)]
     name: String,
     #[builder(with = |x: impl FnMut(OptionsPageLoadArgs) -> PageHandle<A> + 'static| UnsafeCell::new(Box::new(x)))]
@@ -290,6 +291,7 @@ impl<A: PluginApp> PluginHandler<A> {
             Some(handle) => {
                 debug!(is_closed = handle.tx.is_closed(), "Killing options page");
                 _ = handle.tx.unbounded_send(OptionsPageInternalMessage::Kill);
+                // TODO: Without waiting can cause dangling handle
                 #[cfg(debug_assertions)]
                 std::thread::spawn(|| {
                     // debug: ~14ms

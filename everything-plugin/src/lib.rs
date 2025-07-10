@@ -106,6 +106,15 @@ impl<A: PluginApp> PluginHandler<A> {
         self.handle(sys::EVERYTHING_PLUGIN_PM_START, 0 as _);
     }
 
+    /// Panics if already initialized.
+    pub fn init_start_with_config(&self, config: A::Config) {
+        self.handle(sys::EVERYTHING_PLUGIN_PM_INIT, 0 as _);
+        self.handle(
+            sys::EVERYTHING_PLUGIN_PM_START,
+            Box::into_raw(Box::new(config)) as _,
+        );
+    }
+
     /// Panics if not initialized or already stopped.
     pub fn stop_kill(&self) {
         self.handle(sys::EVERYTHING_PLUGIN_PM_STOP, 0 as _);

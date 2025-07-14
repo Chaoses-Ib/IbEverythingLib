@@ -6,8 +6,6 @@ use windows_sys::Win32::{
     UI::WindowsAndMessaging::{EnumThreadWindows, GetClassNameW},
 };
 
-use crate::PluginHost;
-
 const IPC_CLASS_PREFIX: &U16Str = u16str!("EVERYTHING_TASKBAR_NOTIFICATION");
 
 struct EnumWindowsData {
@@ -69,11 +67,5 @@ impl IpcWindow {
         self.class_name
             .strip_prefix("EVERYTHING_TASKBAR_NOTIFICATION_(")
             .and_then(|s| s.strip_suffix(')'))
-    }
-}
-
-impl PluginHost {
-    pub fn ipc_window_from_main_thread() -> Option<IpcWindow> {
-        IpcWindow::from_current_thread()
     }
 }

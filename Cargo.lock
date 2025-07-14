@@ -527,11 +527,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "everything-ipc"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "widestring",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "everything-plugin"
 version = "0.2.1"
 dependencies = [
  "anstream",
  "bon",
+ "everything-ipc",
  "futures-channel",
  "futures-util",
  "serde",
@@ -539,7 +549,6 @@ dependencies = [
  "tracing",
  "tracing-panic",
  "tracing-subscriber",
- "widestring",
  "windows-sys 0.59.0",
  "winio",
 ]

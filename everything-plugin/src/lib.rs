@@ -28,14 +28,15 @@ use std::{
 };
 
 use bon::Builder;
+use everything_ipc::IpcWindow;
 use tracing::{debug, trace};
 
 use crate::data::Config;
 
+pub use everything_ipc as ipc;
 pub use serde;
 
 pub mod data;
-pub mod ipc;
 pub mod log;
 pub mod macros;
 pub mod sys;
@@ -349,6 +350,10 @@ impl PluginHost {
         let s = unsafe { (*cbuf).to_string() };
         self.utf8_buf_kill(cbuf);
         s
+    }
+
+    pub fn ipc_window_from_main_thread() -> Option<IpcWindow> {
+        IpcWindow::from_current_thread()
     }
 
     pub fn instance_name_from_main_thread() -> Option<String> {

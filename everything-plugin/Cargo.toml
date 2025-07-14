@@ -23,6 +23,7 @@ winio-darkmode = ["winio/win32-dark-mode"]
 [dependencies]
 anstream = { version = "0.6", optional = true }
 bon = "3"
+everything-ipc = { version = "0.1", path = "../everything-ipc" }
 futures-channel = { version = "0.3", optional = true }
 futures-util = { version = "0.3", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
@@ -30,9 +31,7 @@ serde_json = { version = "1", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-panic = { version = "0.1.2", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
-widestring = "1"
 windows-sys = { version = "0.59", features = [
-    "Win32_System_Threading",
     "Win32_UI_WindowsAndMessaging"
 ] }
 

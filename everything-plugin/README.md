@@ -1,4 +1,8 @@
 # everything-plugin
+[![crates.io](https://img.shields.io/crates/v/everything-plugin.svg)](https://crates.io/crates/everything-plugin)
+[![Documentation](https://docs.rs/everything-plugin/badge.svg)](https://docs.rs/everything-plugin)
+[![License](https://img.shields.io/crates/l/everything-plugin.svg)](../LICENSE.txt)
+
 Rust binding for [Everything](https://www.voidtools.com/)'s [plugin SDK](https://www.voidtools.com/forum/viewtopic.php?t=16535).
 
 Features:

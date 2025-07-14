@@ -3,10 +3,12 @@ use widestring::{U16Str, u16str};
 use windows_sys::Win32::{
     Foundation::{BOOL, FALSE, HWND, LPARAM, TRUE},
     System::Threading::GetCurrentThreadId,
-    UI::WindowsAndMessaging::{EnumThreadWindows, GetClassNameW},
+    UI::WindowsAndMessaging::{EnumThreadWindows, GetClassNameW, SendMessageW, WM_USER},
 };
 
 const IPC_CLASS_PREFIX: &U16Str = u16str!("EVERYTHING_TASKBAR_NOTIFICATION");
+
+const EVERYTHING_WM_IPC: u32 = WM_USER;
 
 struct EnumWindowsData {
     result: Option<IpcWindow>,
@@ -67,5 +69,43 @@ impl IpcWindow {
         self.class_name
             .strip_prefix("EVERYTHING_TASKBAR_NOTIFICATION_(")
             .and_then(|s| s.strip_suffix(')'))
+    }
+
+    pub fn get_version(&self) -> Version {
+        const EVERYTHING_IPC_GET_MAJOR_VERSION: u32 = 0;
+        const EVERYTHING_IPC_GET_MINOR_VERSION: u32 = 1;
+        const EVERYTHING_IPC_GET_REVISION: u32 = 2;
+        const EVERYTHING_IPC_GET_BUILD_NUMBER: u32 = 3;
+        // const EVERYTHING_IPC_GET_TARGET_MACHINE: u32 = 5;
+
+        let send_u32 = |command: u32| unsafe {
+            SendMessageW(self.hwnd, EVERYTHING_WM_IPC, command as usize, 0)
+        } as u32;
+
+        Version {
+            major: send_u32(EVERYTHING_IPC_GET_MAJOR_VERSION),
+            minor: send_u32(EVERYTHING_IPC_GET_MINOR_VERSION),
+            revision: send_u32(EVERYTHING_IPC_GET_REVISION),
+            build: send_u32(EVERYTHING_IPC_GET_BUILD_NUMBER),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Version {
+    pub major: u32,
+    pub minor: u32,
+    pub revision: u32,
+    pub build: u32,
+}
+
+impl Version {
+    pub fn new(major: u32, minor: u32, revision: u32, build: u32) -> Self {
+        Self {
+            major,
+            minor,
+            revision,
+            build,
+        }
     }
 }

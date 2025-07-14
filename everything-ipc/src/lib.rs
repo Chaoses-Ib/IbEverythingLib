@@ -1,3 +1,9 @@
+//! Rust binding for Everything's IPC SDK.
+//!
+//! ## Features
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(feature = "doc", doc = document_features::document_features!())]
+
 use tracing::debug;
 use widestring::{U16Str, u16str};
 use windows_sys::Win32::{

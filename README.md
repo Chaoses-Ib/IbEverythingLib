@@ -55,6 +55,9 @@ plugin_main!(App, {
 });
 ```
 
+Plugins using this library:
+- [IbEverythingExt: Everything 拼音搜索、ローマ字検索、快速选择扩展](https://github.com/Chaoses-Ib/IbEverythingExt)
+
 ## [everything-cpp](everything-cpp)
 A C++17 implementation of [Everything](https://www.voidtools.com/)'s (IPC) SDK.
 

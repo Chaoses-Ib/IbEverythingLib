@@ -1,3 +1,20 @@
+/// ```ignore
+/// plugin_main!(App, {
+///     PluginHandler::builder()
+///         .name("Test Plugin")
+///         .description("A test plugin for Everything")
+///         .author("Chaoses-Ib")
+///         .version("0.1.0")
+///         .link("https://github.com/Chaoses-Ib/IbEverythingLib")
+///         .options_pages(vec![
+///             OptionsPage::builder()
+///                 .name("Test Plugin")
+///                 .load(ui::winio::spawn::<options::MainModel>)
+///                 .build(),
+///         ])
+///         .build()
+/// });
+/// ```
 #[macro_export]
 macro_rules! plugin_main {
     ($app_type:ty, $handler_builder:expr) => {

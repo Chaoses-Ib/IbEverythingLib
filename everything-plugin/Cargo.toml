@@ -11,18 +11,32 @@ keywords.workspace = true
 
 [features]
 default = ["tracing", "serde", "winio"]
-# TODO: Disable on release?
+
+## Log with [tracing](https://github.com/tokio-rs/tracing)
+## 
+## TODO: Disable on release?
 tracing = ["dep:tracing", "dep:tracing-subscriber", "dep:tracing-panic", "dep:anstream"]
+
+## Load and save config with [Serde](https://github.com/serde-rs/serde)
 serde = ["dep:serde", "dep:serde_json"]
+
 ui = ["dep:futures-channel", "dep:futures-util"]
+
+## Make options pages GUI using [Winio](https://github.com/compio-rs/winio) in MVU (Elm) architecture
 winio = ["ui", "dep:winio"]
-# 1214 -> 1233 KiB
-# TODO: Affect Everything labels, limit to thread local?
+## Enable dark mode support in Winio
+## 
+## 1214 -> 1233 KiB
+##
+## TODO: Affect Everything labels, limit to thread local?
 winio-darkmode = ["winio/win32-dark-mode"]
+
+doc = ["dep:document-features"]
 
 [dependencies]
 anstream = { version = "0.6", optional = true }
 bon = "3"
+document-features = { version = "0.2", optional = true }
 everything-ipc = { version = "0.1", path = "../everything-ipc" }
 futures-channel = { version = "0.3", optional = true }
 futures-util = { version = "0.3", optional = true }
@@ -55,3 +69,18 @@ crate-type = ["cdylib"]
 [[example]]
 name = "options"
 crate-type = ["cdylib"]
+
+[package.metadata.docs.rs]
+# We want to document all features.
+all-features = true
+# Since this crate's feature setup is pretty complicated, it is worth opting
+# into a nightly unstable option to show the features that need to be enabled
+# for public API items. To do that, we set 'docsrs', and when that's enabled,
+# we enable the 'doc_auto_cfg' feature.
+#
+# To test this locally, run:
+# ```
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features
+# $env:RUSTDOCFLAGS="--cfg docsrs"; cargo +nightly doc --all-features
+# ```
+rustdoc-args = ["--cfg", "docsrs"]

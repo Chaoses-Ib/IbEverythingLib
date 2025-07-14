@@ -1,3 +1,58 @@
+//! Rust binding for [Everything](https://www.voidtools.com/)'s [plugin SDK](https://www.voidtools.com/forum/viewtopic.php?t=16535).
+//!
+//! Features:
+//! - Load and save config with [Serde](https://github.com/serde-rs/serde)
+//! - Make options pages GUI using [Winio](https://github.com/compio-rs/winio) in MVU (Elm) architecture
+//! - Log with [tracing](https://github.com/tokio-rs/tracing)
+//!
+//! ## Example
+//! ```rust
+//! mod options;
+//!
+//! #[derive(Serialize, Deserialize, Debug, Default)]
+//! pub struct Config {
+//!     s: String,
+//! }
+//!
+//! pub struct App {
+//!     config: Config,
+//! }
+//!
+//! impl PluginApp for App {
+//!     type Config = Config;
+//!
+//!     fn new(config: Option<Self::Config>) -> Self {
+//!         Self {
+//!             config: config.unwrap_or_default(),
+//!         }
+//!     }
+//!
+//!     fn config(&self) -> &Self::Config {
+//!         &self.config
+//!     }
+//!
+//!     fn into_config(self) -> Self::Config {
+//!         self.config
+//!     }
+//! }
+//!
+//! plugin_main!(App, {
+//!     PluginHandler::builder()
+//!         .name("Test Plugin")
+//!         .description("A test plugin for Everything")
+//!         .author("Chaoses-Ib")
+//!         .version("0.1.0")
+//!         .link("https://github.com/Chaoses-Ib/IbEverythingLib")
+//!         .options_pages(vec![
+//!             OptionsPage::builder()
+//!                 .name("Test Plugin")
+//!                 .load(ui::winio::spawn::<options::MainModel>)
+//!                 .build(),
+//!         ])
+//!         .build()
+//! });
+//! ```
+//!
 //! ## Detachable design
 //! The API is designed to allow the app to be easily detached from Everything and run independently. Either for standalone distribution or testing.
 //!
@@ -9,7 +64,7 @@
 //! - Serde
 //! - [`PluginApp`]
 //! - [`PluginHandler`]
-//!   - [`PluginHandler::init_start()`]
+//!   - [`PluginHandler::init_start()`], [`PluginHandler::init_start_with_config()`]
 //!   - [`PluginHandler::stop_kill()`]
 //!   - [`PluginHandler::get_host()`]
 //!
@@ -17,6 +72,24 @@
 //! - Tray icon and menu itmes / tabs
 //! - Load & save config with file
 //! - Unified host/IPC API
+//!
+//! ## Build
+//! ### Static CRT
+//! `.cargo/config.toml`:
+//! ```toml
+//! [target.'cfg(all(target_os = "windows", target_env = "msvc"))']
+//! rustflags = ["-C", "target-feature=+crt-static"]
+//! ```
+//! Increase build size by ~100 KiB.
+//!
+//! ## Debugging
+//! - `.\Everything64.exe -debug`
+//!   
+//!   Unlike `-debug`, `-debug-log` doesn't work with stdout/stderr outputs.
+//!
+//! ## Features
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(feature = "doc", doc = document_features::document_features!())]
 
 use core::str;
 use std::{
@@ -42,6 +115,35 @@ pub mod macros;
 pub mod sys;
 pub mod ui;
 
+/// ## Example
+/// ```ignore
+/// #[derive(Serialize, Deserialize, Debug, Default)]
+/// pub struct Config {
+///     s: String,
+/// }
+///
+/// pub struct App {
+///     config: Config,
+/// }
+///
+/// impl PluginApp for App {
+///     type Config = Config;
+///
+///     fn new(config: Option<Self::Config>) -> Self {
+///         Self {
+///             config: config.unwrap_or_default(),
+///         }
+///     }
+///
+///     fn config(&self) -> &Self::Config {
+///         &self.config
+///     }
+///
+///     fn into_config(self) -> Self::Config {
+///         self.config
+///     }
+/// }
+/// ```
 pub trait PluginApp: 'static {
     type Config: Config;
 
@@ -55,8 +157,25 @@ pub trait PluginApp: 'static {
     fn into_config(self) -> Self::Config;
 }
 
+/// ## Example
+/// ```ignore
+/// PluginHandler::builder()
+///     .name("Test Plugin")
+///     .description("A test plugin for Everything")
+///     .author("Chaoses-Ib")
+///     .version("0.1.0")
+///     .link("https://github.com/Chaoses-Ib/IbEverythingLib")
+///     .options_pages(vec![
+///         OptionsPage::builder()
+///             .name("Test Plugin")
+///             .load(ui::winio::spawn::<options::MainModel>)
+///             .build(),
+///     ])
+///     .build()
+/// ```
+///
 /// ## Design
-/// - Config may be accessed from multiple threads, and options pages need to modify it. To avoid race conditions, either config is cloned when modifying, and then [`App`] is reloaded with it, i.e. [`arc_swap::ArcSwap`]; or [`App`] is shutdown before modifying and then restarted.
+/// - Config may be accessed from multiple threads, and options pages need to modify it. To avoid race conditions, either config is cloned when modifying, and then [`PluginApp`] is reloaded with it, i.e. [`arc_swap::ArcSwap`]; or [`PluginApp`] is shutdown before modifying and then restarted.
 /// - User defined static to work around generic static limit.
 ///   - Interior mutability to make it easy to use with `static`. But `UnsafeCell` to avoid cost.
 ///

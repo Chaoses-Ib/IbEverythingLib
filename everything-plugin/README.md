@@ -8,6 +8,7 @@ Rust binding for [Everything](https://www.voidtools.com/)'s [plugin SDK](https:/
 Features:
 - Load and save config with [Serde](https://github.com/serde-rs/serde)
 - Make options pages GUI using [Winio](https://github.com/compio-rs/winio) in MVU (Elm) architecture
+- Internationalization with [rust-i18n](https://github.com/longbridge/rust-i18n)
 - Log with [tracing](https://github.com/tokio-rs/tracing)
 
 Example:

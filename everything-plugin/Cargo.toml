@@ -1,6 +1,6 @@
 [package]
 name = "everything-plugin"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 description = "Rust binding for Everything's plugin SDK"
 authors.workspace = true
@@ -31,6 +31,11 @@ winio = ["ui", "dep:winio"]
 ## TODO: Affect Everything labels, limit to thread local?
 winio-darkmode = ["winio/win32-dark-mode"]
 
+## Internationalization with [rust-i18n](https://github.com/longbridge/rust-i18n).
+##
+## The locale name is the same as used by Windows, e.g. `en-US`. See [OS Language Values-Codes](https://www.autoitscript.com/autoit3/docs/appendix/OSLangCodes.htm) for details.
+rust-i18n = ["dep:rust-i18n"]
+
 doc = ["dep:document-features"]
 
 [dependencies]
@@ -40,12 +45,15 @@ document-features = { version = "0.2", optional = true }
 everything-ipc = { version = "0.1", path = "../everything-ipc" }
 futures-channel = { version = "0.3", optional = true }
 futures-util = { version = "0.3", optional = true }
+rust-i18n = { version = "3", optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-panic = { version = "0.1.2", optional = true }
 tracing-subscriber = { version = "0.3", optional = true }
 windows-sys = { version = "0.59", features = [
+    "Win32_Globalization",
+    "Win32_System_SystemServices",
     "Win32_UI_WindowsAndMessaging"
 ] }
 
@@ -57,6 +65,7 @@ optional = true
 # rev = "d57fa507ba27a4dc71887f202ec4eb594f5acb0e"
 
 [dev-dependencies]
+everything-plugin = { features = ["rust-i18n"], path = "." }
 
 [[example]]
 name = "test"

@@ -25,6 +25,8 @@ use tracing::{debug, error};
 
 use crate::{PluginApp, PluginHandler, PluginHost, sys};
 
+pub mod config;
+
 pub trait Config: Serialize + DeserializeOwned + Send + Debug + 'static {}
 
 impl<T: Serialize + DeserializeOwned + Send + Debug + 'static> Config for T {}

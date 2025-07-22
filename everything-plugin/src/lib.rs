@@ -3,6 +3,7 @@
 //! Features:
 //! - Load and save config with [Serde](https://github.com/serde-rs/serde)
 //! - Make options pages GUI using [Winio](https://github.com/compio-rs/winio) in MVU (Elm) architecture
+//! - Internationalization with [rust-i18n](https://github.com/longbridge/rust-i18n)
 //! - Log with [tracing](https://github.com/tokio-rs/tracing)
 //!
 //! ## Example
@@ -268,6 +269,9 @@ impl<A: PluginApp> PluginHandler<A> {
                     PluginHost::instance_name_from_main_thread();
                 debug!(instance_name = ?self.instance_name());
 
+                #[cfg(feature = "rust-i18n")]
+                rust_i18n::set_locale(&self.get_language_name());
+
                 1 as _
             }
             sys::EVERYTHING_PLUGIN_PM_GET_PLUGIN_VERSION => sys::EVERYTHING_PLUGIN_VERSION as _,
@@ -383,7 +387,7 @@ impl<A: PluginApp> PluginHandler<A> {
 }
 
 /// - [x] `instance_name` (non-official)
-/// - [ ] `config_*`
+/// - [x] `config_*`
 /// - [ ] `db_*`
 /// - [ ] `debug_*` (tracing)
 /// - [ ] `localization_get_*`

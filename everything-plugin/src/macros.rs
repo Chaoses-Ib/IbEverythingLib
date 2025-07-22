@@ -30,6 +30,8 @@ macro_rules! plugin_main {
             msg: u32,
             data: *mut ::std::ffi::c_void,
         ) -> *mut ::std::ffi::c_void {
+            ::everything_plugin::PluginHandler::<$app_type>::handle_init_i18n(msg, data);
+
             HANDLER.handle(msg, data)
         }
     };

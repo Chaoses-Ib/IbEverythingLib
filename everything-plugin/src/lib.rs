@@ -253,6 +253,20 @@ impl<A: PluginApp> PluginHandler<A> {
         unsafe { self.get_host().unwrap_unchecked() }
     }
 
+    pub fn handle_init_i18n(_msg: u32, _data: *mut c_void) {
+        #[cfg(feature = "rust-i18n")]
+        if _msg == sys::EVERYTHING_PLUGIN_PM_INIT {
+            let language = if !_data.is_null() {
+                let host = unsafe { PluginHost::from_data(_data) };
+                host.config_get_language_name()
+            } else {
+                PluginHost::get_thread_language_name()
+            };
+
+            rust_i18n::set_locale(&language);
+        }
+    }
+
     /// You shouldn't and unlikely need to call this function from multiple threads.
     pub fn handle(&self, msg: u32, data: *mut c_void) -> *mut c_void {
         match msg {
@@ -269,8 +283,8 @@ impl<A: PluginApp> PluginHandler<A> {
                     PluginHost::instance_name_from_main_thread();
                 debug!(instance_name = ?self.instance_name());
 
-                #[cfg(feature = "rust-i18n")]
-                rust_i18n::set_locale(&self.get_language_name());
+                // #[cfg(feature = "rust-i18n")]
+                // rust_i18n::set_locale(&self.get_language_name());
 
                 1 as _
             }

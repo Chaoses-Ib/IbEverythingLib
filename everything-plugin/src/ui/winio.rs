@@ -123,4 +123,9 @@ pub fn adjust_window(window: &mut Window) {
     window.set_style(window.style() & !WS_OVERLAPPEDWINDOW);
 
     // TODO: Transparent background / background color
+
+    // Mitigate the occasional misplacement bug.
+    // It can be stably reproduced by enabling `tracing-appender` and blocking the console.
+    // The root cause is still unclear. Not because of `CW_USEDEFAULT`; probably related to multiple threading and Everything positioning behavior.
+    window.set_loc(Point::new(0.0, 0.0));
 }

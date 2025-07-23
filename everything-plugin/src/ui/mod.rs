@@ -18,7 +18,8 @@ use tracing::{debug, trace, warn};
 use windows_sys::Win32::{
     Foundation::HWND,
     UI::WindowsAndMessaging::{
-        GA_ROOT, GetAncestor, SendMessageW, WM_CLOSE, WM_CREATE, WM_CTLCOLORDLG, WM_PARENTNOTIFY,
+        GA_ROOT, GetAncestor, SWP_NOZORDER, SendMessageW, SetWindowPos, WM_CLOSE, WM_CREATE,
+        WM_CTLCOLORDLG, WM_MOVE, WM_PARENTNOTIFY, WM_SIZE,
     },
 };
 
@@ -61,6 +62,7 @@ pub struct OptionsPageLoadArgs {
 
 enum OptionsPageInternalMessage<A: PluginApp> {
     Msg(OptionsPageMessage<A>),
+    Size((i32, i32)),
     /// Map to [`WM_CLOSE`] to reuse `WindowEvent::Close`
     Kill,
 }
@@ -75,6 +77,12 @@ impl<A: PluginApp> OptionsPageInternalMessage<A> {
     pub fn try_into(self, window: HWND) -> Option<OptionsPageMessage<A>> {
         match self {
             OptionsPageInternalMessage::Msg(msg) => Some(msg),
+            OptionsPageInternalMessage::Size(v) => {
+                debug!(?v, "OptionsPageInternalMessage::Size");
+                // We do not use `SWP_NOMOVE` to mitigate the occasional misplacement bug by the way, see `winio::adjust_window` for details.
+                unsafe { SetWindowPos(window, 0 as _, 0, 0, v.0, v.1, SWP_NOZORDER) };
+                None
+            }
             OptionsPageInternalMessage::Kill => {
                 unsafe { SendMessageW(window, WM_CLOSE, 0, 0) };
                 None
@@ -212,13 +220,22 @@ impl<A: PluginApp> PluginHandler<A> {
     }
 
     pub fn size_options_page(&self, _data: *mut c_void) -> *mut c_void {
-        // TODO
+        // We listen to WM_SIZE in options_page_proc instead
         0 as _
     }
 
     pub fn options_page_proc(&self, data: *mut c_void) -> *mut c_void {
         let data = unsafe { &mut *(data as *mut sys::everything_plugin_options_page_proc_s) };
         trace!(?data, "Plugin options page proc");
+
+        if self.options_pages.is_empty() {
+            return 0 as _;
+        }
+        let page = &self.options_pages[data.user_data as usize];
+
+        let msg = data.msg as u32;
+        let w_param = data.wParam;
+        let l_param = data.lParam;
 
         let options_hwnd = unsafe { mem::transmute(data.options_hwnd) };
         // let page_hwnd = unsafe { mem::transmute(data.page_hwnd) };
@@ -248,8 +265,22 @@ impl<A: PluginApp> PluginHandler<A> {
         // msg: WM_PAINT (15), wParam: 0, lParam: 0
         // msg: WM_WINDOWPOSCHANGING (70), wParam: 0, lParam: 15716848
         // msg: WM_PAINT (15), wParam: 0, lParam: 0
-
-        match data.msg as u32 {
+        match msg {
+            WM_MOVE | WM_CLOSE => {
+                debug!(
+                    msg,
+                    lParam = ?l_param as *const c_void,
+                    lParam = ?w_param as *const c_void,
+                );
+            }
+            WM_SIZE => {
+                if let Some(handle) = page.handle() {
+                    _ = handle.tx.unbounded_send(OptionsPageInternalMessage::Size((
+                        (l_param & 0xFFFF) as i32,
+                        (l_param >> 16) as i32,
+                    )));
+                }
+            }
             WM_PARENTNOTIFY => {
                 debug!(wParam = data.wParam, "WM_PARENTNOTIFY");
                 match data.wParam as u32 {

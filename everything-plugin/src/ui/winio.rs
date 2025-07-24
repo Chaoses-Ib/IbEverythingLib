@@ -82,6 +82,7 @@ impl<'a, A: PluginApp> From<()> for OptionsPageInit<'a, A> {
 }
 
 impl<'a, A: PluginApp> OptionsPageInit<'a, A> {
+    /// Do not call `set_size()` after calling this in `init()`, otherwise the initial size will be overridden.
     pub fn window<T: OptionsPageComponent<'a, App = A>>(
         &mut self,
         sender: &ComponentSender<T>,
@@ -91,15 +92,21 @@ impl<'a, A: PluginApp> OptionsPageInit<'a, A> {
         window
     }
 
+    /// Do not call `set_size()` after calling this in `init()`, otherwise the initial size will be overridden.
     pub fn init<T: OptionsPageComponent<'a, App = A>>(
         &mut self,
         window: &mut Window,
         sender: &ComponentSender<T>,
     ) {
+        // Put before spawn to avoid unnecessary runtime check
+        adjust_window(window);
+
         if let Some(mut rx) = self.rx.take() {
             let window = window.as_raw_window();
             let sender = sender.clone();
             winio::compio::runtime::spawn(async move {
+                // We cannot defer initial size setting because `set_size()` will run this task many times
+                // See https://github.com/compio-rs/compio/issues/459
                 while let Some(m) = rx.next().await {
                     if let Some(m) = m.try_into(window) {
                         debug!(?m, "Options page message");
@@ -110,7 +117,6 @@ impl<'a, A: PluginApp> OptionsPageInit<'a, A> {
             })
             .detach();
         }
-        adjust_window(window);
     }
 }
 

@@ -34,7 +34,7 @@ impl Component for MainModel {
 
     fn init(mut init: Self::Init<'_>, sender: &ComponentSender<Self>) -> Self {
         let mut window = init.window(sender);
-        window.set_size(Size::new(800.0, 600.0));
+        // window.set_size(Size::new(800.0, 600.0));
 
         let mut enabled = Child::<CheckBox>::init(&window);
         enabled.set_text("Enable");

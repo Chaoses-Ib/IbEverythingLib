@@ -48,7 +48,7 @@ pub fn spawn<'a, T: OptionsPageComponent<'a>>(args: OptionsPageLoadArgs) -> Page
     let thread_handle = std::thread::spawn(move || {
         let parent: HWND = unsafe { mem::transmute(parent) };
         run::<T>(OptionsPageInit {
-            parent: unsafe { BorrowedWindow::borrow_raw(parent) }.into(),
+            parent: unsafe { BorrowedWindow::borrow_raw(RawWindow::Win32(parent)) }.into(),
             rx: Some(rx),
         });
         // widgets::main(page_hwnd)
@@ -108,7 +108,7 @@ impl<'a, A: PluginApp> OptionsPageInit<'a, A> {
                 // We cannot defer initial size setting because `set_size()` will run this task many times
                 // See https://github.com/compio-rs/compio/issues/459
                 while let Some(m) = rx.next().await {
-                    if let Some(m) = m.try_into(window) {
+                    if let Some(m) = m.try_into(window.as_win32()) {
                         debug!(?m, "Options page message");
                         sender.post(m.into());
                     }

@@ -1,6 +1,6 @@
 [package]
 name = "everything-plugin"
-version = "0.2.2"
+version = "0.3.0"
 edition = "2024"
 description = "Rust binding for Everything's plugin SDK"
 authors.workspace = true
@@ -61,8 +61,10 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [dependencies.winio]
-version = ">=0.7,<0.8"
+# v0.7.2 has breaking changes
+version = ">=0.7.2,<0.8"
 default-features = false
+features = ["win32"]
 optional = true
 # git = "https://github.com/compio-rs/winio"
 # rev = "d57fa507ba27a4dc71887f202ec4eb594f5acb0e"

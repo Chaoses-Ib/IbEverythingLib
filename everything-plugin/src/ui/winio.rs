@@ -9,12 +9,8 @@ use futures_channel::mpsc;
 use futures_util::StreamExt;
 use tracing::debug;
 use windows_sys::Win32::{Foundation::HWND, UI::WindowsAndMessaging::WS_OVERLAPPEDWINDOW};
-use winio::prelude::*;
 
-use crate::{
-    PluginApp,
-    ui::{OptionsPageInternalMessage, OptionsPageLoadArgs, OptionsPageMessage, PageHandle},
-};
+use crate::ui::{OptionsPageInternalMessage, OptionsPageLoadArgs, PageHandle};
 
 pub use winio;
 
@@ -23,6 +19,7 @@ pub mod prelude {
     pub use crate::PluginApp;
     pub use winio::prelude::*;
 }
+use prelude::*;
 
 pub trait OptionsPageComponent<'a>:
     Component<

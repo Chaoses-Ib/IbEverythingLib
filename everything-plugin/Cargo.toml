@@ -85,8 +85,11 @@ name = "options"
 crate-type = ["cdylib"]
 
 [package.metadata.docs.rs]
+targets = ["x86_64-pc-windows-msvc"]
 # We want to document all features.
-all-features = true
+# But winio-darkmode can't be cross-compiled.
+# all-features = true
+features = ["tracing", "serde", "ui", "winio", "rust-i18n", "doc"]
 # Since this crate's feature setup is pretty complicated, it is worth opting
 # into a nightly unstable option to show the features that need to be enabled
 # for public API items. To do that, we set 'docsrs', and when that's enabled,

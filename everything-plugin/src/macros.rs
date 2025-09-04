@@ -19,7 +19,14 @@
 macro_rules! plugin_main {
     ($app_type:ty, $handler_builder:expr) => {
         static HANDLER: ::std::sync::LazyLock<::everything_plugin::PluginHandler<$app_type>> =
-            ::std::sync::LazyLock::new(|| $handler_builder);
+            ::std::sync::LazyLock::new(|| {
+                ::everything_plugin::PluginHandler::<$app_type>::handle_init_i18n(
+                    ::everything_plugin::sys::EVERYTHING_PLUGIN_PM_INIT,
+                    0 as _,
+                );
+
+                $handler_builder
+            });
 
         /// - `msg` is a `EVERYTHING_PLUGIN_PM_*` message.
         /// - `data` will depend on the `EVERYTHING_PLUGIN_PM_*` message.

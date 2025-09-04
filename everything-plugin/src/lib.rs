@@ -253,17 +253,29 @@ impl<A: PluginApp> PluginHandler<A> {
         unsafe { self.get_host().unwrap_unchecked() }
     }
 
+    /// Should be called before [`PluginHandler`] is created, as some fields may depend on the locale.
+    ///
+    /// Already called in the [`plugin_main!`] macro. (Requiring manually calling is a footgun: [IbEverythingExt #100](https://github.com/Chaoses-Ib/IbEverythingExt/issues/100))
     pub fn handle_init_i18n(_msg: u32, _data: *mut c_void) {
         #[cfg(feature = "rust-i18n")]
         if _msg == sys::EVERYTHING_PLUGIN_PM_INIT {
-            let language = if !_data.is_null() {
-                let host = unsafe { PluginHost::from_data(_data) };
-                host.config_get_language_name()
-            } else {
-                PluginHost::get_thread_language_name()
-            };
+            use std::sync::Once;
+            static INIT: Once = Once::new();
 
-            rust_i18n::set_locale(&language);
+            debug_assert!(
+                !(INIT.is_completed() && !_data.is_null()),
+                "i18n already inited"
+            );
+            INIT.call_once(|| {
+                let language = if !_data.is_null() {
+                    let host = unsafe { PluginHost::from_data(_data) };
+                    host.config_get_language_name()
+                } else {
+                    PluginHost::get_thread_language_name()
+                };
+
+                rust_i18n::set_locale(&language);
+            });
         }
     }
 

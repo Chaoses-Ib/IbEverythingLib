@@ -111,6 +111,7 @@ pub use everything_ipc as ipc;
 pub use serde;
 
 pub mod data;
+#[cfg(feature = "tracing")]
 pub mod log;
 pub mod macros;
 pub mod sys;
@@ -253,6 +254,18 @@ impl<A: PluginApp> PluginHandler<A> {
         unsafe { self.get_host().unwrap_unchecked() }
     }
 
+    #[cfg(feature = "rust-i18n")]
+    fn init_i18n(data: *mut c_void) {
+        let language = if !data.is_null() {
+            let host = unsafe { PluginHost::from_data(data) };
+            host.config_get_language_name()
+        } else {
+            PluginHost::get_thread_language_name()
+        };
+
+        rust_i18n::set_locale(&language);
+    }
+
     /// Should be called before [`PluginHandler`] is created, as some fields may depend on the locale.
     ///
     /// Already called in the [`plugin_main!`] macro. (Requiring manually calling is a footgun: [IbEverythingExt #100](https://github.com/Chaoses-Ib/IbEverythingExt/issues/100))
@@ -262,19 +275,14 @@ impl<A: PluginApp> PluginHandler<A> {
             use std::sync::Once;
             static INIT: Once = Once::new();
 
-            debug_assert!(
-                !(INIT.is_completed() && !_data.is_null()),
-                "i18n already inited"
-            );
+            if INIT.is_completed() && !_data.is_null() {
+                // If i18n is inited, tracing should also be inited.
+                debug!("i18n reinit");
+                // Allow reinit (DLL hijacking and plugin)
+                Self::init_i18n(_data);
+            }
             INIT.call_once(|| {
-                let language = if !_data.is_null() {
-                    let host = unsafe { PluginHost::from_data(_data) };
-                    host.config_get_language_name()
-                } else {
-                    PluginHost::get_thread_language_name()
-                };
-
-                rust_i18n::set_locale(&language);
+                Self::init_i18n(_data);
             });
         }
     }
@@ -283,9 +291,15 @@ impl<A: PluginApp> PluginHandler<A> {
     pub fn handle(&self, msg: u32, data: *mut c_void) -> *mut c_void {
         match msg {
             sys::EVERYTHING_PLUGIN_PM_INIT => {
-                #[cfg(feature = "tracing")]
-                log::tracing_init();
-                debug!("Plugin init");
+                if !self.app_is_some() {
+                    #[cfg(feature = "tracing")]
+                    let _ = log::tracing_try_init();
+                    debug!("Plugin init");
+                } else {
+                    // Allow reinit (DLL hijacking and plugin)
+                    debug!("Plugin reinit");
+                    self.app_into_config();
+                }
 
                 if !data.is_null() {
                     _ = self.host.set(unsafe { PluginHost::from_data(data) });
@@ -382,6 +396,11 @@ impl<A: PluginApp> PluginHandler<A> {
 
     pub fn instance_name(&self) -> Option<&str> {
         unsafe { &*self.instance_name.get() }.as_deref()
+    }
+
+    fn app_is_some(&self) -> bool {
+        let app = unsafe { &*self.app.get() };
+        app.is_some()
     }
 
     fn app_new(&self, config: Option<A::Config>) {
